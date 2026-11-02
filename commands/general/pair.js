@@ -61,7 +61,7 @@ module.exports = {
 
                 try {
                     const response = await axios.get(
-                        `https://pair-teddy-xmd-ultra.onrender.com/code?number=${number}`,
+                        `https://teddyxmdpair-60b69f1c4cee.herokuapp.com/code?number=${number}`,
                         { timeout: 20000 }
                     );
 
