@@ -15,7 +15,7 @@ const zlib = require('zlib');
 let BufferJSON = null;
 try { ({ BufferJSON } = require('@whiskeysockets/baileys/lib/Utils/generics')); } catch (_) {}
 
-const DEFAULT_SESSION_SERVER_URL = 'https://burning-lorena-eminentbo-ede53cc1.koyeb.app';
+const DEFAULT_SESSION_SERVER_URL = 'https://teddyxmdpair-60b69f1c4cee.herokuapp.com';
 const DEFAULT_TIMEOUT_MS = 20000;
 // Minted by the Session Server: "TEDDY-XMD~" + SESSION_ID_LENGTH (4-20, default 6).
 const HANDLE_PATTERN = /^TEDDY-XMD~[A-Za-z0-9]{4,20}$/i;
