@@ -14,8 +14,8 @@ const { sendButtons } = require('gifted-btns');
 const { applyFont } = require('../../utils/fontConverter');
 const database = require('../../database');
 
-const GITHUB_USER = 'TEDDY-XMD';
-const GITHUB_REPO = 'Teddyxmd';
+const GITHUB_USER = 'Teddyxmd';
+const GITHUB_REPO = 'TEDDY-XMD';
 const REPO_URL = `https://github.com/${GITHUB_USER}/${GITHUB_REPO}`;
 const API_URL = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}`;
 const REQUEST_TIMEOUT_MS = 10_000;
