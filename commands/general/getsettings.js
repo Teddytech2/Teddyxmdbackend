@@ -38,7 +38,7 @@ module.exports = {
                     name: 'cta_url',
                     buttonParamsJson: JSON.stringify({
                         display_text: '🔗 GitHub Repo',
-                        url: database.SOCIAL?.github || 'https://github.com/Vinpink2/TEDDY-XMD-ULTRA-Ultra'
+                        url: database.SOCIAL?.github || 'https://github.com/Teddyxmd/TEDDY-XMD'
                     })
                 }
             ];
