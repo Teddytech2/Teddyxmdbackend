@@ -1,0 +1,3221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TEDDY-XMD-ULTRA · Web Chat</title>
+<style>
+  :root{
+    --bg:#03060c; --panel:rgba(10,20,28,.88); --cyan:#00ffe0; --orange:#ff6b35;
+    --text:#e2f0ff; --muted:#7f9eb5; --border:rgba(0,255,224,.18); --red:#e94560;
+    --me:rgba(0,255,224,.14); --them:rgba(255,255,255,.06);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{overscroll-behavior:none}
+  body{background:radial-gradient(circle at 20% 30%,#0a0f1e,var(--bg));color:var(--text);
+    font-family:'Inter',-apple-system,'Segoe UI',system-ui,sans-serif;height:100vh;height:100dvh;overflow:hidden}
+  #app{display:flex;height:100vh;height:100dvh}
+  #sidebar{width:320px;min-width:320px;border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column}
+  .side-head{padding:14px 16px;border-bottom:1px solid var(--border)}
+  .brand{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.1rem;
+    background:linear-gradient(135deg,var(--cyan),var(--orange));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .brand small{display:block;font-size:.58rem;letter-spacing:2px;color:var(--muted);margin-top:2px;-webkit-text-fill-color:var(--muted)}
+  .conn{display:flex;align-items:center;gap:7px;margin-top:10px;font-size:.72rem;color:var(--muted)}
+  .conn .dot{width:8px;height:8px;border-radius:50%;background:var(--red);flex:none}
+  .brand-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .head-actions{display:flex;align-items:center;gap:8px;flex:none}
+  .head-btn{width:38px;height:38px;border-radius:50%;border:1px solid var(--border);background:rgba(0,255,224,.05);color:var(--cyan);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;padding:0}
+  .head-btn:active{transform:scale(.95)}
+  #new-chat-open{width:38px;height:38px;flex:none;border-radius:50%;border:0;cursor:pointer;
+    background:#25d366;color:#fff;font-size:1.5rem;line-height:1;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 2px 10px rgba(0,0,0,.35)}
+  #new-chat-open:active{transform:scale(.95)}
+  .nc-overlay{position:fixed;inset:0;background:rgba(3,6,12,.72);display:flex;justify-content:center;align-items:stretch;z-index:50}
+  .nc-overlay[hidden]{display:none}
+  .nc-sheet{background:var(--panel);color:var(--text);width:100%;max-width:440px;height:100%;display:flex;flex-direction:column;overflow:hidden;border-left:1px solid var(--border);border-right:1px solid var(--border);box-shadow:0 0 30px rgba(0,255,224,.08)}
+  .nc-top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px}
+  .nc-top h2{margin:0;font-size:1.1rem;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:1px;color:var(--cyan)}
+  .nc-close{width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--cyan);font-size:1rem;cursor:pointer}
+  .nc-search{margin:8px 14px 10px;background:rgba(0,255,224,.05);border:1px solid var(--border);border-radius:22px;display:flex;align-items:center;gap:8px;padding:0 14px;height:42px}
+  .nc-search svg{flex:none;stroke:var(--muted)}
+  .nc-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:.95rem;color:var(--text);padding:0}
+  .nc-search input::placeholder{color:var(--muted)}
+  #nc-body{flex:1;overflow-y:auto;padding:0 22px 24px 0;position:relative}
+  .nc-sheet{position:relative}
+  .nc-index{position:absolute;right:2px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:0;z-index:2;max-height:100%}
+  .nc-index button{background:none;border:0;padding:0;width:18px;font-size:.6rem;line-height:1.35;color:var(--cyan);cursor:pointer;font-family:'JetBrains Mono',monospace}
+  .nc-index button:disabled{color:rgba(127,158,181,.35);cursor:default}
+  .nc-card{background:rgba(0,255,224,.03);border:1px solid var(--border);border-radius:12px;margin:0 12px 14px;overflow:hidden}
+  .nc-row{display:flex;align-items:center;gap:14px;padding:10px 14px;cursor:pointer;min-height:56px}
+  .nc-row + .nc-row{border-top:1px solid rgba(0,255,224,.08)}
+  .nc-row:active{background:rgba(0,255,224,.08)}
+  .nc-row .nc-ico{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--cyan)}
+  .nc-row .nc-ico svg{stroke:var(--cyan);fill:none;stroke-width:1.8}
+  .nc-row .nc-av{width:44px;height:44px;flex:none;position:relative}
+  .nc-row .nc-av .avatar{width:44px;height:44px;border:1px solid var(--border)}
+  .nc-row .nc-av .avatar-fallback{background:rgba(0,255,224,.08);color:var(--cyan)}
+  .nc-text{min-width:0;flex:1}
+  .nc-name{font-size:.95rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nc-sub{font-size:.74rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nc-label{padding:10px 18px 6px;font-size:.66rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase}
+  .nc-note{padding:12px 18px;font-size:.8rem;color:var(--muted)}
+  .cap-overlay{position:fixed;inset:0;background:#000;color:#fff;z-index:60;display:flex;flex-direction:column;overflow:hidden}
+  .cap-overlay[hidden]{display:none}
+  .cap-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+  .cap-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:16px 14px;z-index:2}
+  .cap-btn{width:42px;height:42px;border-radius:50%;border:0;background:rgba(20,30,38,.6);color:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+  .cap-bottom{position:absolute;bottom:0;left:0;right:0;padding:18px 14px 26px;display:flex;flex-direction:column;align-items:center;gap:16px;z-index:2;background:linear-gradient(transparent,rgba(0,0,0,.55))}
+  .cap-row{width:100%;display:flex;justify-content:space-between;align-items:center}
+  .cap-shutter{width:76px;height:76px;border-radius:50%;border:4px solid #fff;background:transparent;padding:0;cursor:pointer;position:relative}
+  .cap-shutter::after{content:'';position:absolute;inset:6px;border-radius:50%;background:#fff;transition:all .15s}
+  .cap-shutter.rec::after{inset:20px;border-radius:8px;background:#ff3b30}
+  .cap-modes{display:flex;gap:22px;font-size:.78rem;letter-spacing:1.5px;font-family:'JetBrains Mono',monospace}
+  .cap-modes button{background:none;border:0;color:rgba(255,255,255,.6);cursor:pointer;padding:4px 2px;font:inherit;letter-spacing:inherit}
+  .cap-modes button.on{color:var(--cyan)}
+  #cap-preview{background:#000}
+  .cap-media{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;overflow:hidden}
+  .cap-media img,.cap-media video{max-width:100%;max-height:100%;object-fit:contain}
+  .cap-tools{display:flex;gap:8px}
+  .cap-tools button{background:rgba(20,30,38,.6);color:#fff;border:0;border-radius:16px;padding:7px 12px;font-size:.78rem;cursor:pointer}
+  .cap-caption-row{display:flex;gap:10px;align-items:center;padding:12px 14px 22px;background:rgba(0,0,0,.5)}
+  #cap-caption{flex:1;min-width:0;border-radius:20px;border:1px solid rgba(255,255,255,.25);background:rgba(20,30,38,.7);color:#fff;padding:11px 14px;font-size:.95rem;outline:0}
+  #cap-caption::placeholder{color:rgba(255,255,255,.55)}
+  .edit-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px;touch-action:none;overflow:hidden}
+  .edit-stage canvas{touch-action:none;display:block;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
+  .edit-panel{min-height:54px;padding:10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;background:rgba(0,0,0,.7)}
+  .edit-panel input{flex:1;min-width:120px;border-radius:16px;border:1px solid rgba(255,255,255,.25);background:rgba(20,30,38,.7);color:#fff;padding:8px 12px;font-size:16px;outline:0}
+  .edit-panel .chip{background:rgba(20,30,38,.8);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:16px;padding:7px 12px;font-size:.8rem;cursor:pointer}
+  .edit-panel .emo{background:none;border:0;font-size:1.6rem;cursor:pointer;padding:2px}
+  .edit-panel .hint{color:rgba(255,255,255,.7);font-size:.8rem}
+  .edit-panel .sw{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.6);cursor:pointer;padding:0}
+  .edit-panel .sw.on{box-shadow:0 0 0 2px #000,0 0 0 4px var(--cyan)}
+  .edit-tabs{display:flex;justify-content:space-around;padding:6px 0 22px;background:#000}
+  .edit-tabs button{background:none;border:0;color:rgba(255,255,255,.6);font:inherit;font-size:.8rem;letter-spacing:1px;cursor:pointer;padding:6px 10px}
+  .edit-tabs button.on{color:var(--cyan)}
+  #cap-done{background:var(--cyan);color:#001}
+  .cap-btn.flash-on{background:#ffcc00;color:#000}
+  .cap-btn.off{opacity:.45}
+  #cap-video{transform-origin:center center}
+  .cap-check{width:52px;height:52px;flex:none;border-radius:50%;border:0;background:var(--cyan);color:#001;font-size:1.3rem;font-weight:700;cursor:pointer}
+  .share-bar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--panel);border-top:1px solid var(--border);z-index:3}
+  .share-bar[hidden]{display:none}
+  #share-count{color:var(--text);font-size:.9rem}
+  #share-send:disabled{opacity:.5;cursor:default}
+  #cam-body{padding-bottom:84px}
+  .nc-mini{background:transparent;border:1px solid var(--cyan);color:var(--cyan);border-radius:14px;padding:4px 10px;font-size:.72rem;cursor:pointer;margin-right:10px}
+  .nc-radio{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border);flex:none;margin-left:auto}
+  .nc-radio.on{background:var(--cyan);border-color:var(--cyan);box-shadow:inset 0 0 0 4px var(--panel)}
+  input,textarea{background:rgba(0,0,0,.35);border:1px solid rgba(0,255,224,.25);color:var(--text);
+    padding:.5rem .7rem;font-size:.82rem;outline:none;border-radius:2px;font-family:inherit}
+  input:focus,textarea:focus{border-color:var(--cyan)}
+  input::placeholder,textarea::placeholder{color:#5a7c8c}
+  button{background:rgba(0,255,224,.1);color:var(--cyan);border:1px solid rgba(0,255,224,.4);
+    padding:.5rem .8rem;font-size:.75rem;cursor:pointer;border-radius:2px;letter-spacing:1px;font-family:inherit}
+  button:hover{background:rgba(0,255,224,.22)}
+  button:disabled{opacity:.4;cursor:default}
+  #search-wrap{padding:10px 12px;border-bottom:1px solid var(--border)}
+  #chat-list{flex:1;overflow-y:auto}
+  .chat-item{padding:11px 14px;border-bottom:1px solid rgba(0,255,224,.07);cursor:pointer;display:flex;align-items:center;gap:10px}
+  .chat-item:hover{background:rgba(0,255,224,.05)}
+  .chat-item.active{background:rgba(0,255,224,.1);border-left:2px solid var(--cyan)}
+  .chat-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .chat-item .row1{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .chat-item .name{font-size:.86rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chat-item .time{font-size:.62rem;color:var(--muted);flex:none;font-family:'JetBrains Mono',monospace}
+  .chat-item .preview{font-size:.74rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .search-head{padding:10px 14px;font-size:.6rem;letter-spacing:2px;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase}
+  .e2e-notice{align-self:center;max-width:92%;margin:6px 0 10px;padding:8px 12px;border-radius:8px;background:rgba(255,214,102,.12);border:1px solid rgba(255,214,102,.25);color:var(--text,#e8f1f0);font-size:.7rem;line-height:1.35;text-align:center}
+  .swipe-hint{position:absolute;left:4px;top:50%;transform:translateY(-50%);font-size:1rem;opacity:0;pointer-events:none}
+  .archive-row{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;color:var(--cyan);font-size:.8rem;border-bottom:1px solid var(--border)}
+  .archive-row:hover{background:rgba(0,255,224,.05)}
+  .archive-label{flex:1}
+  .archive-count{color:var(--muted);font-size:.72rem}
+  .swipe-wrap{position:relative;overflow:hidden}
+  .swipe-wrap .chat-item{position:relative;background:var(--bg);touch-action:pan-y;transition:transform .18s ease}
+  .swipe-actions{position:absolute;top:0;bottom:0;display:flex;width:150px}
+  .swipe-actions.left{right:0;justify-content:flex-end}
+  .swipe-actions.right{left:0}
+  .swipe-btn{flex:1;border:0;color:#fff;font:inherit;font-size:.72rem;cursor:pointer}
+  .swipe-btn.more{background:#4a4a4a}
+  .swipe-btn.archive{background:#1f9d55}
+  .swipe-btn.unread{background:#1f9d55}
+  .swipe-btn.pin{background:#4a4a4a}
+  .call-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer}
+  .call-row:hover{background:rgba(0,255,224,.04)}
+  .call-meta{flex:1;min-width:0}
+  .call-name{font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .call-sub{font-size:.72rem;color:var(--muted);margin-top:2px}
+  .call-sub.missed{color:var(--red)}
+  .call-time{font-size:.68rem;color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+  .empty{padding:18px 14px;font-size:.75rem;color:var(--muted);text-align:center}
+  .avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;flex:none;border:1px solid var(--border);display:block;background:rgba(0,255,224,.08)}
+  .avatar-fallback{display:flex;align-items:center;justify-content:center;color:var(--cyan);font-weight:600;font-size:.85rem;font-family:'JetBrains Mono',monospace}
+  .avatar.sm{width:34px;height:34px}
+  .unread{background:var(--cyan);color:#03060c;font-size:.6rem;font-weight:700;border-radius:20px;padding:1px 7px;flex:none;font-family:'JetBrains Mono',monospace;align-self:center}
+  #main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+  #chat-head{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:2px;background:var(--panel)}
+  .head-row{display:flex;align-items:center;gap:10px;min-width:0}
+  #back-btn{display:none;background:none;border:none;color:var(--cyan);font-size:1.3rem;line-height:1;cursor:pointer;padding:0;letter-spacing:0}
+  .head-names{display:flex;flex-direction:column;min-width:0;flex:1}
+  #chat-title{font-weight:600;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #chat-presence{font-size:.7rem;color:var(--muted);min-height:.9rem}
+  #chat-presence.typing{color:var(--orange)}
+  #chat-presence.online{color:var(--cyan)}
+  #chat-sub{font-size:.66rem;color:var(--muted);font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #head-search{background:none;border:none;font-size:1rem;padding:4px 6px;letter-spacing:0}
+  .notice{padding:10px 18px;background:rgba(255,107,53,.12);border-bottom:1px solid rgba(255,107,53,.4);color:#ffb703;font-size:.78rem}
+  #in-search{display:flex;flex-direction:column;gap:6px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);max-height:260px}
+  #in-search-results{overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+  .sr-item{padding:6px 8px;border-radius:4px;cursor:pointer;font-size:.78rem;display:flex;justify-content:space-between;gap:8px}
+  .sr-item:hover{background:rgba(0,255,224,.08)}
+  .sr-item .sr-ts{color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.62rem;flex:none}
+  #messages{flex:1;overflow-x:hidden;overflow-y:auto;padding:18px;overscroll-behavior-x:none;display:flex;flex-direction:column;gap:8px}
+  #history-status{order:-1;position:sticky;top:6px;height:0;margin-bottom:-8px;z-index:4;display:flex;justify-content:center;overflow:visible;pointer-events:none}
+  #history-status[hidden]{display:none}
+  #history-status span{background:#03060c;border:1px solid var(--border);color:var(--muted);font-size:.66rem;padding:4px 12px;border-radius:20px;white-space:nowrap}
+  #history-status.err span{color:var(--orange)}
+  .date-sep{align-self:center;background:rgba(0,255,224,.08);border:1px solid var(--border);color:var(--muted);
+    font-size:.62rem;letter-spacing:1px;padding:4px 12px;border-radius:20px;font-family:'JetBrains Mono',monospace;margin:6px 0}
+  .msg-row{display:flex;position:relative;touch-action:pan-y}
+  .msg-row.me{justify-content:flex-end}
+  .msg-row.cont{margin-top:-5px}
+  .bubble{position:relative;max-width:72%;padding:8px 12px;border-radius:10px;font-size:.86rem;line-height:1.4;word-break:break-word;white-space:pre-wrap}
+  .msg-row.me .bubble{background:var(--me);border:1px solid rgba(0,255,224,.25);border-bottom-right-radius:3px}
+  .msg-row.them .bubble{background:var(--them);border:1px solid rgba(255,255,255,.08);border-bottom-left-radius:3px}
+  .msg-row.me.cont .bubble{border-top-right-radius:3px}
+  .msg-row.them.cont .bubble{border-top-left-radius:3px}
+  .bubble.notice{font-size:.74rem}
+  .bubble .sender{font-size:.66rem;color:var(--orange);margin-bottom:2px;font-weight:600}
+  .bubble .ts{font-size:.6rem;color:var(--muted);margin-top:4px;display:flex;justify-content:flex-end;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace}
+  .ticks{font-size:.62rem;letter-spacing:-1px;line-height:1}
+  .ticks.read{color:var(--cyan)}
+  .ticks.err{color:var(--red)}
+  .edited{font-size:.58rem;color:var(--muted);font-style:italic}
+  .fwd{font-size:.62rem;color:var(--muted);font-style:italic;margin-bottom:3px}
+  .bubble.deleted{font-style:italic;color:var(--muted);border-style:dashed}
+  .mention{color:var(--cyan);font-weight:600}
+  .media{margin-bottom:4px}
+  .media-img{max-width:260px;max-height:300px;border-radius:8px;display:block;cursor:pointer;border:1px solid var(--border)}
+  .media-video{display:block;width:100%;max-width:300px;min-height:180px;background:#000;border-radius:8px;border:1px solid var(--border)}
+  .media-audio{max-width:280px;display:block}
+  .wave{display:flex;align-items:flex-end;gap:2px;height:28px;margin-bottom:4px;min-width:200px;cursor:pointer;touch-action:manipulation}
+  .wave span{flex:1;background:var(--muted);border-radius:2px;min-height:3px;opacity:.7}
+  .wave span.played{background:var(--cyan);opacity:1}
+  .doc-card{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;text-decoration:none;color:var(--text);max-width:280px}
+  .doc-card:hover{border-color:var(--cyan)}
+  .doc-ic{font-size:1.3rem}
+  .doc-col{display:flex;flex-direction:column;min-width:0}
+  .doc-name{font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .doc-sub{font-size:.64rem;color:var(--muted)}
+  .quote{border-left:3px solid var(--orange);background:rgba(255,255,255,.045);border-radius:4px;padding:5px 9px;margin-bottom:5px;cursor:pointer}
+  .msg-row.me .quote{border-left-color:var(--cyan)}
+  .quote-name{font-size:.68rem;font-weight:600;color:var(--orange);margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .msg-row.me .quote-name{color:var(--cyan)}
+  .quote-text{font-size:.74rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .poll{min-width:230px;display:flex;flex-direction:column;gap:6px}
+  .poll-q{font-weight:600;font-size:.9rem}
+  .poll-opt{position:relative;overflow:hidden;text-align:left;background:rgba(0,0,0,.25);border:1px solid var(--border);color:var(--text);
+    padding:7px 10px;border-radius:6px;letter-spacing:0;font-size:.8rem;display:flex;justify-content:space-between;gap:8px}
+  .poll-opt .bar{position:absolute;left:0;top:0;bottom:0;background:rgba(0,255,224,.13);z-index:0}
+  .poll-opt span{position:relative;z-index:1}
+  .poll-opt.mine{border-color:var(--cyan)}
+  .poll-meta{font-size:.64rem;color:var(--muted)}
+  .rx-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;justify-content:flex-end}
+  .rx-pill{background:rgba(0,0,0,.35);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:1px 8px;font-size:.68rem;cursor:pointer;letter-spacing:0;line-height:1.5}
+  .rx-pill.by-me{border-color:var(--cyan);background:rgba(0,255,224,.16)}
+  .bubble-actions{position:absolute;top:-9px;right:5px;display:none;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:1px 5px;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:2}
+  .msg-row:hover .bubble-actions,.msg-row.show-actions .bubble-actions{display:flex}
+  .bubble-actions button{background:none;border:none;color:var(--muted);font-size:.72rem;padding:1px 4px;letter-spacing:0;line-height:1.4}
+  .bubble-actions button:hover{color:var(--cyan);background:none}
+  #rx-bar{position:fixed;z-index:60;display:none;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:4px 7px;box-shadow:0 6px 18px rgba(0,0,0,.55)}
+  #rx-bar.show{display:flex}
+  #rx-bar{flex-wrap:wrap;max-width:min(92vw,300px)}
+  #rx-bar button.rx-more{font-weight:700;color:var(--cyan)}
+  #msg-menu{position:fixed;z-index:70;min-width:200px;max-width:260px;background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  #msg-menu button{display:flex;align-items:center;gap:12px;width:100%;background:none;border:0;border-bottom:1px solid var(--border);color:var(--text);font:inherit;font-size:.9rem;padding:11px 14px;text-align:left;cursor:pointer}
+  #msg-menu button:last-child{border-bottom:0}
+  #msg-menu button:hover{background:rgba(0,255,224,.06)}
+  #msg-menu button.danger{color:#ff5c5c}
+  #msg-menu button.back{color:var(--cyan)}
+  #msg-menu .ic{width:20px;text-align:center;opacity:.9}
+  #toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:90;background:var(--panel);border:1px solid var(--cyan);color:var(--text);padding:8px 14px;border-radius:20px;font-size:.8rem;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+  .info-row{display:flex;justify-content:space-between;gap:12px;font-size:.85rem;padding:7px 0;border-bottom:1px solid var(--border)}
+  .info-k{color:var(--muted)}
+  .info-v{text-align:right}
+  @media (hover:none){
+    .bubble-actions{display:none!important}
+    .bubble{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+  }
+  #rx-bar button{background:none;border:none;font-size:1.05rem;padding:2px 5px;cursor:pointer;border-radius:6px;letter-spacing:0;line-height:1.3}
+  #rx-bar button:hover{background:rgba(0,255,224,.15)}
+  .flash .bubble{box-shadow:0 0 0 2px var(--cyan),0 0 18px rgba(0,255,224,.35)}
+  #reply-bar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--panel);border-top:1px solid var(--border)}
+  #reply-bar[hidden]{display:none}
+  .reply-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;border-left:3px solid var(--cyan);padding-left:9px}
+  #reply-name{font-size:.72rem;font-weight:600;color:var(--cyan)}
+  #reply-text{font-size:.74rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #reply-cancel{background:none;border:none;color:var(--muted);font-size:.95rem;padding:2px 6px;letter-spacing:0;line-height:1.2}
+  #reply-cancel:hover{color:var(--red)}
+  #rec-bar{display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(233,69,96,.1);border-top:1px solid rgba(233,69,96,.4)}
+  #rec-bar[hidden]{display:none}
+  #rec-dot{width:9px;height:9px;border-radius:50%;background:var(--red);animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.2}}
+  #rec-time{font-family:'JetBrains Mono',monospace;font-size:.8rem;flex:1}
+  #mention-list{position:absolute;left:14px;right:14px;bottom:64px;background:var(--panel);border:1px solid var(--border);border-radius:6px;max-height:220px;overflow-y:auto;z-index:20;display:flex;flex-direction:column}
+  #mention-list[hidden]{display:none}
+  .mention-item{padding:8px 12px;cursor:pointer;font-size:.8rem;display:flex;justify-content:space-between;gap:8px}
+  .mention-item:hover,.mention-item.sel{background:rgba(0,255,224,.1)}
+  .mention-item small{color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.66rem}
+  #emoji-panel{position:absolute;left:14px;right:14px;bottom:64px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px;max-height:260px;overflow-y:auto;z-index:20;box-shadow:0 6px 18px rgba(0,0,0,.55)}
+  #emoji-panel[hidden]{display:none}
+  .emo-cat{font-size:.6rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:6px 4px 4px}
+  .emo-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:2px}
+  .emo-grid button{background:none;border:none;font-size:1.2rem;padding:4px 0;letter-spacing:0}
+  .emo-grid button:hover{background:rgba(0,255,224,.12)}
+  #send-form{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border);background:var(--panel);align-items:center;position:relative}
+  #send-form[hidden]{display:none}
+  #admin-only-bar{padding:14px 16px;text-align:center;font-size:.8rem;color:var(--muted);background:var(--panel);border-top:1px solid var(--border)}
+  #admin-only-bar[hidden]{display:none}
+  #admin-only-link{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--cyan);cursor:pointer}
+  #admins-modal{align-items:flex-end;padding:0}
+  .admins-card{max-width:520px;width:100%;border-radius:16px 16px 0 0;max-height:80vh;padding:14px 14px 18px}
+  .admins-head{display:flex;align-items:center;justify-content:space-between}
+  .admins-x{background:none;border:1px solid var(--border);border-radius:50%;width:32px;height:32px;color:var(--muted);cursor:pointer}
+  #admins-list{display:flex;flex-direction:column;overflow-y:auto;min-height:120px}
+  .admin-item{display:flex;align-items:center;gap:10px;padding:10px 6px;border:0;border-bottom:1px solid var(--border);background:none;color:var(--text);text-align:left;font:inherit;cursor:pointer}
+  .admin-item:hover{background:rgba(0,255,224,.06)}
+  .admin-av{position:relative;width:36px;height:36px;flex:none;border-radius:50%;overflow:hidden;background:rgba(0,255,224,.08)}
+  .admin-av img.avatar{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:0}
+  .admin-av .avatar-fallback{position:absolute;inset:0;background:var(--cyan);color:#03060c;font-weight:700}
+  #send-text{flex:1;min-width:0}
+  #send-form button.tool{padding:.5rem .6rem;font-size:.95rem;letter-spacing:0}
+  #logout{font-size:.62rem;padding:.3rem .6rem;margin-top:10px;align-self:flex-start}
+  .modal{position:fixed;inset:0;z-index:80;background:rgba(3,6,12,.82);display:flex;align-items:center;justify-content:center;padding:1rem}
+  .modal-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:10px;max-height:90vh;overflow-y:auto}
+  .modal-card h3{font-size:.9rem;font-family:'JetBrains Mono',monospace;color:var(--cyan);letter-spacing:1px}
+  .modal-row{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+  .modal-card label{font-size:.72rem;color:var(--muted);display:flex;gap:6px;align-items:center}
+  .pick-item{padding:10px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:.84rem}
+  .pick-item:hover{border-color:var(--cyan)}
+  #logged-out{position:fixed;inset:0;z-index:100;background:rgba(3,6,12,.97);display:flex;align-items:center;justify-content:center;padding:2rem}
+  .lo-card{max-width:420px;width:100%;text-align:center;background:var(--panel);border:1px solid rgba(233,69,96,.5);box-shadow:0 0 30px rgba(233,69,96,.3);padding:2.5rem 2rem;display:flex;flex-direction:column;gap:1rem;align-items:center}
+  .lo-title{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:2rem;color:var(--red);letter-spacing:2px}
+  .lo-sub{font-size:.85rem;color:var(--muted);line-height:1.5}
+
+  /* ── mobile: one pane at a time (like WhatsApp mobile) ─────────────────── */
+  @media (max-width:720px){
+    #sidebar{width:100%;min-width:100%;border-right:none}
+    #main{display:none}
+    #app.chat-open #sidebar{display:none}
+    #app.chat-open #main{display:flex}
+    #back-btn{display:block}
+    input,textarea{font-size:16px} /* prevent iOS zoom-on-focus */
+    .bubble{max-width:85%}
+    .emo-grid{grid-template-columns:repeat(8,1fr)}
+  }
+  .tabs{display:flex;gap:6px;padding:8px 14px 0}
+  .tab{flex:1;background:none;border:1px solid var(--border);color:var(--muted);border-radius:18px;padding:6px 0;font:inherit;font-size:.8rem;cursor:pointer}
+  .tab.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,255,224,.08)}
+  .tab .unread{margin-left:6px}
+  .upd-head{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:12px 14px 6px}
+  .status-row{display:flex;gap:12px;overflow-x:auto;padding:4px 14px 10px}
+  .status-item{background:none;border:0;color:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;width:66px;flex:none;cursor:pointer;font:inherit}
+  .status-ring{display:block;padding:2px;border-radius:50%;border:2px solid var(--border)}
+  .status-item.unread .status-ring{border-color:var(--cyan)}
+  .status-ring .avatar{width:50px;height:50px}
+  .status-name{font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:66px}
+  #status-viewer{position:fixed;inset:0;z-index:95;background:#000;color:#fff;display:flex;flex-direction:column}
+  #status-viewer[hidden]{display:none!important}
+  #sv-progress{position:relative;z-index:3;display:flex;gap:3px;padding:8px 8px 0}
+  .sv-seg{flex:1;height:2.5px;background:rgba(255,255,255,.35);border-radius:2px;overflow:hidden}
+  .sv-seg>i{display:block;height:100%;width:0;background:#fff}
+  .sv-seg.done>i{width:100%}
+  .sv-seg.active>i{animation:svfill var(--sv-ms,6000ms) linear forwards}
+  @keyframes svfill{from{width:0}to{width:100%}}
+  .sv-head{position:relative;z-index:3;display:flex;align-items:center;gap:10px;padding:10px 12px}
+  #sv-close{background:none;border:0;color:#fff;font-size:1.8rem;line-height:1;cursor:pointer;padding:0 6px 0 0}
+  .sv-av{width:36px;height:36px;border-radius:50%;object-fit:cover;background:#333;flex:none}
+  .sv-who{display:flex;flex-direction:column;min-width:0}
+  #sv-name{font-weight:600;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #sv-time{font-size:.75rem;color:#bbb}
+  #sv-stage{flex:1;position:relative;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden}
+  #sv-content{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  #sv-content img,#sv-content video{width:100%;height:100%;object-fit:contain}
+  .sv-text{width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:28px;font-size:1.5rem;text-align:center;white-space:pre-wrap;background:linear-gradient(135deg,#0f3b3a,#0b1220)}
+  #sv-caption{position:relative;z-index:3;padding:14px 18px 26px;text-align:center;font-size:1rem;white-space:pre-wrap;background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.8))}
+  #sv-caption:empty{display:none}
+  .sv-tap{position:absolute;top:120px;bottom:110px;width:40%;z-index:2}
+  .sv-prev{left:0}
+  .sv-next{right:0}
+</style>
+</head>
+<body>
+<div id="status-viewer" hidden>
+  <div id="sv-progress"></div>
+  <div class="sv-head">
+    <button id="sv-close" type="button" aria-label="close">‹</button>
+    <img id="sv-avatar" class="sv-av" alt="">
+    <div class="sv-who"><div id="sv-name"></div><div id="sv-time"></div></div>
+  </div>
+  <div id="sv-stage"><div id="sv-content"></div></div>
+  <div id="sv-caption"></div>
+  <div class="sv-tap sv-prev"></div>
+  <div class="sv-tap sv-next"></div>
+</div>
+<div id="new-chat-dialog" class="nc-overlay" hidden>
+  <div class="nc-sheet" role="dialog" aria-modal="true" aria-label="New chat">
+    <div class="nc-top">
+      <h2>New chat</h2>
+      <button id="new-chat-close" class="nc-close" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="nc-search">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="new-chat-input" placeholder="Name, number, @username" maxlength="40" autocomplete="off">
+    </div>
+    <div id="nc-body"></div>
+    <div id="nc-index" class="nc-index" aria-label="Jump to letter"></div>
+  </div>
+</div>
+<div id="nc-screen" class="nc-overlay" hidden>
+  <div class="nc-sheet" role="dialog" aria-modal="true" aria-labelledby="nc-screen-title">
+    <div class="nc-top">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button id="nc-screen-back" class="nc-close" type="button" aria-label="Back">←</button>
+        <h2 id="nc-screen-title"></h2>
+      </div>
+    </div>
+    <div id="nc-screen-body"></div>
+  </div>
+</div>
+<div id="cam-dialog" class="nc-overlay" hidden>
+  <div class="nc-sheet" role="dialog" aria-modal="true" aria-label="Status">
+    <div class="nc-top">
+      <h2>Status</h2>
+      <button id="cam-close" class="nc-close" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="nc-search">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="cam-search" placeholder="Search" autocomplete="off">
+    </div>
+    <div id="cam-body"></div>
+    <div id="share-bar" class="share-bar" hidden><span id="share-count"></span><button id="share-send" class="cap-check" type="button" aria-label="Send">✓</button></div>
+  </div>
+</div>
+<div id="cap-capture" class="cap-overlay" hidden>
+  <video id="cap-video" class="cap-video" autoplay playsinline muted></video>
+  <div class="cap-top">
+    <button id="cap-close" class="cap-btn" type="button" aria-label="Close camera">✕</button>
+    <button id="cap-flash" class="cap-btn" type="button" aria-label="Flash">⚡</button>
+  </div>
+  <div class="cap-bottom">
+    <div class="cap-row">
+      <button id="cap-gallery" class="cap-btn" type="button" aria-label="Gallery">▣</button>
+      <button id="cap-shutter" class="cap-shutter" type="button" aria-label="Capture"></button>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button id="cap-zoom" class="cap-btn" type="button" aria-label="Zoom">1×</button>
+        <button id="cap-flip" class="cap-btn" type="button" aria-label="Switch camera">⟲</button>
+      </div>
+    </div>
+    <div class="cap-modes">
+      <button id="mode-video" type="button">VIDEO</button>
+      <button id="mode-photo" class="on" type="button">PHOTO</button>
+    </div>
+  </div>
+</div>
+<div id="cap-preview" class="cap-overlay" hidden>
+  <div class="cap-top">
+    <button id="cap-retake" class="cap-btn" type="button" aria-label="Retake">✕</button>
+    <div class="cap-tools">
+      <button type="button" data-edit-tool="crop">Crop</button>
+      <button type="button" data-edit-tool="draw">Draw</button>
+      <button type="button" data-edit-tool="text">Text</button>
+      <button type="button" data-edit-tool="emoji">Emoji</button>
+    </div>
+  </div>
+  <div class="cap-media" id="cap-media"></div>
+  <div class="cap-caption-row">
+    <input id="cap-caption" placeholder="Add a caption…" maxlength="300" autocomplete="off">
+    <button id="cap-send" class="cap-check" type="button" aria-label="Send">✓</button>
+  </div>
+</div>
+<div id="cap-edit" class="cap-overlay" hidden>
+  <div class="cap-top">
+    <button id="edit-cancel" class="cap-btn" type="button" aria-label="Cancel edit">✕</button>
+    <div class="cap-tools"><button id="edit-undo" type="button">Undo</button></div>
+    <button id="cap-done" class="cap-btn" type="button" aria-label="Done">✓</button>
+  </div>
+  <div class="edit-stage" id="edit-stage"><canvas id="edit-canvas"></canvas></div>
+  <div class="edit-panel" id="edit-panel"></div>
+  <div class="edit-tabs">
+    <button type="button" data-tool="crop">CROP</button>
+    <button type="button" data-tool="draw">DRAW</button>
+    <button type="button" data-tool="text">TEXT</button>
+    <button type="button" data-tool="emoji">EMOJI</button>
+  </div>
+</div>
+<input type="file" id="cap-file-camera" accept="image/*,video/*" capture="environment" hidden>
+<input type="file" id="cap-file-gallery" accept="image/*,video/*" hidden>
+<div id="app">
+  <aside id="sidebar">
+    <div class="side-head">
+      <div class="brand-row">
+        <div class="brand">TEDDY-XMD-ULTRA<small>WEB CHAT · OWNER ONLY</small></div>
+        <div class="head-actions">
+          <button id="status-camera" class="head-btn" type="button" title="Status" aria-label="Status">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.4"/></svg>
+          </button>
+          <button id="new-chat-open" type="button" title="New chat" aria-label="New chat">+</button>
+        </div>
+      </div>
+      <div class="conn"><span class="dot" id="conn-dot"></span><span id="conn-text">connecting…</span></div>
+      <button id="logout">logout</button>
+    </div>
+    <div class="tabs">
+      <button id="tab-chats" class="tab active" type="button">Chats</button>
+      <button id="tab-calls" class="tab" type="button">Calls</button>
+      <button id="tab-updates" class="tab" type="button">Updates<span id="updates-badge" class="unread" hidden></span></button>
+    </div>
+    <div id="updates-list" hidden></div>
+    <div id="calls-list" hidden></div>
+    <div id="search-wrap"><input id="search" placeholder="search messages…" style="width:100%"></div>
+    <div id="chat-list"><div class="empty">loading…</div></div>
+  </aside>
+  <main id="main">
+    <div id="chat-head">
+      <div class="head-row">
+        <button id="back-btn" title="back to chats">←</button>
+        <span class="avatar" id="head-avatar"></span>
+        <div class="head-names">
+          <span id="chat-title">select a chat</span>
+          <span id="chat-presence"></span>
+        </div>
+        <button id="head-poll" class="tool" title="create a poll" disabled>📊</button>
+        <button id="head-search" title="search this chat" disabled>🔍</button>
+      </div>
+      <span id="chat-sub">recent chats appear here as the bot sees messages</span>
+    </div>
+    <div id="notice" class="notice" hidden></div>
+    <div id="in-search" hidden>
+      <input id="in-search-input" placeholder="find in this chat…">
+      <div id="in-search-results"></div>
+    </div>
+    <div id="messages"></div>
+    <div id="reply-bar" hidden>
+      <div class="reply-col">
+        <span id="reply-name"></span>
+        <span id="reply-text"></span>
+      </div>
+      <button id="reply-cancel" type="button" title="cancel">✕</button>
+    </div>
+    <div id="rec-bar" hidden>
+      <span id="rec-dot"></span>
+      <span id="rec-time">0:00</span>
+      <button id="rec-cancel" type="button">cancel</button>
+    </div>
+    <div id="mention-list" hidden></div>
+    <div id="emoji-panel" hidden></div>
+    <form id="send-form">
+      <button id="attach-btn" class="tool" type="button" title="attach image / video / document" disabled>📎</button>
+      <input id="attach-input" type="file" hidden>
+      <button id="emoji-btn" class="tool" type="button" title="emoji" disabled>😀</button>
+      <input id="send-text" placeholder="type a message…" autocomplete="off" maxlength="4000" disabled>
+      <button id="mic-btn" class="tool" type="button" title="voice note" disabled>🎙️</button>
+      <button id="send-btn" type="submit" disabled>➤</button>
+    </form>
+    <div id="admin-only-bar" hidden>Only <button id="admin-only-link" type="button">admins</button> can send messages</div>
+  </main>
+</div>
+
+<div id="rx-bar"></div>
+
+<div id="admins-modal" class="modal" hidden>
+  <div class="modal-card admins-card">
+    <div class="admins-head"><h3>Message admin</h3><button id="admins-close" class="admins-x" type="button" aria-label="close">✕</button></div>
+    <input id="admins-search" placeholder="Search for an admin" autocomplete="off">
+    <div id="admins-list"></div>
+  </div>
+</div>
+<div id="poll-modal" class="modal" hidden>
+  <div class="modal-card">
+    <h3>NEW POLL</h3>
+    <input id="poll-q" placeholder="question" maxlength="255">
+    <div id="poll-opts" style="display:flex;flex-direction:column;gap:6px"></div>
+    <button id="poll-add" type="button">+ option</button>
+    <label><input type="checkbox" id="poll-multi"> allow multiple answers</label>
+    <div class="modal-row">
+      <button id="poll-cancel" type="button">cancel</button>
+      <button id="poll-create" type="button">create poll</button>
+    </div>
+  </div>
+</div>
+
+<div id="fwd-modal" class="modal" hidden>
+  <div class="modal-card">
+    <h3>FORWARD TO…</h3>
+    <div id="fwd-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div class="modal-row"><button id="fwd-cancel" type="button">cancel</button></div>
+  </div>
+</div>
+
+<div id="logged-out" hidden>
+  <div class="lo-card">
+    <div class="lo-title">LOGGED OUT</div>
+    <div class="lo-sub">inject a new session (SESSION_ID) or pair manually in the terminal, then restart the bot</div>
+    <button id="lo-reload">reload page</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+const state = {
+  pending: [], loadingJid: null, tab: 'chats', showArchived: false, swiping: false, chatsDirty: true, readOnly: false, updates: null,
+  chats: [], currentJid: null, currentName: '', currentIsGroup: false, filter: '', connected: false,
+  memory: [],          // latest page from the live store
+  history: [],         // older pages loaded automatically (or by scrolling up / search)
+  hasMore: false,
+  historyGen: 0,       // bumped on every chat switch; stale loads check it and drop out
+  olderPromise: null,  // the in-flight older-page request, if any (dedupes callers)
+  historyFailures: 0,
+  historyRetryAt: 0,
+  presence: null, lastSeen: null,
+  replyTo: null, editing: null, forwardId: null,
+  mentions: new Map(), // jid -> true, for mentions present in the composer
+  members: new Map(),  // group jid -> [{jid,name}]
+  rec: null, recChunks: [], recStart: 0, recTimer: null,
+};
+
+const $ = (id) => document.getElementById(id);
+const MY_EDIT_MS = 15 * 60 * 1000;
+const MY_DELETE_MS = 48 * 3600 * 1000;
+
+let noticeShown = false;
+function showNotice(text) {
+  if (noticeShown) return;
+  noticeShown = true;
+  const n = $('notice');
+  n.textContent = text;
+  n.hidden = false;
+}
+
+async function api(path, opts = {}) {
+  let r;
+  try {
+    r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  } catch (e) {
+    showNotice('⚠️ can\'t reach the bot server — open this page from your bot (…/chat)');
+    throw e;
+  }
+  if (r.status === 401) { window.location = '/login'; throw new Error('unauthorized'); }
+  return r.json();
+}
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === new Date().toDateString()) return time;
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + time;
+}
+
+function fmtLastSeen(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return 'today at ' + time;
+  if (d.toDateString() === yest.toDateString()) return 'yesterday at ' + time;
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' at ' + time;
+}
+
+function dayLabel(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === now.toDateString()) return 'TODAY';
+  if (d.toDateString() === yest.toDateString()) return 'YESTERDAY';
+  const opts = { weekday: 'short', day: 'numeric', month: 'short' };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString([], opts).toUpperCase();
+}
+
+// First letter or digit of the name. Emoji and symbols are skipped, so an emoji-named contact
+// never shows a broken character.
+function avatarInitial(name) {
+  for (const ch of Array.from(String(name || '').trim())) {
+    if (/[\p{L}\p{N}]/u.test(ch)) return ch.toUpperCase();
+  }
+  return '';
+}
+const PERSON_ICON = '<svg viewBox="0 0 24 24" width="55%" height="55%" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8.5" r="4.2"/><path d="M4 21.5c0-4.6 3.6-7.4 8-7.4s8 2.8 8 7.4z"/></svg>';
+function setAvatar(container, jid, name) {
+  container.textContent = '';
+  const img = el('img', 'avatar');
+  img.alt = '';
+  img.src = '/api/avatar?jid=' + encodeURIComponent(jid);
+  const letter = avatarInitial(name);
+  const fallback = el('span', 'avatar avatar-fallback');
+  if (letter) fallback.textContent = letter;
+  else fallback.innerHTML = PERSON_ICON;
+  img.onload = () => fallback.remove();
+  img.onerror = () => img.remove();
+  container.appendChild(img);
+  container.appendChild(fallback);
+}
+
+/* ── status, chat list ─────────────────────────────────────────────────── */
+
+async function loadStatus() {
+  try {
+    const s = await api('/api/status');
+    state.connected = s.botState === 'connected';
+    const loggedOut = s.loggedOut === true || s.botState === 'logged_out';
+    $('logged-out').hidden = !loggedOut;
+    $('conn-dot').style.background = loggedOut ? 'var(--red)' : (state.connected ? 'var(--cyan)' : (s.botState === 'connecting' ? '#ffb703' : 'var(--red)'));
+    $('conn-text').textContent = loggedOut ? 'logged out' : (state.connected ? 'online as +' + (s.number || '…') : String(s.botState));
+    setComposerEnabled();
+  } catch (_) {}
+}
+
+function setComposerEnabled() {
+  const restricted = !!state.currentIsGroup && state.groupCanSend === false;
+  const canSend = state.connected && !!state.currentJid && !restricted && !state.readOnly;
+  for (const id of ['send-text', 'send-btn', 'attach-btn', 'emoji-btn', 'mic-btn', 'head-poll']) {
+    $(id).disabled = !canSend;
+  }
+  // Search stays available even when the group is admin-only.
+  $('head-search').disabled = !(state.connected && !!state.currentJid);
+  // Locked group: no composer at all, just WhatsApp's "Only admins can send" bar.
+  $('send-form').hidden = restricted;
+  $('admin-only-bar').hidden = !restricted;
+}
+
+async function loadChats() {
+  try {
+    const r = await api('/api/chats?limit=100');
+    const next = r.chats || [];
+    const changed = JSON.stringify(next) !== JSON.stringify(state.chats);
+    state.chats = next;
+    if (changed) state.chatsDirty = true;
+    if (!state.chatsDirty || state.filter.trim()) return;
+    // The 5-second refresh must not rebuild rows under a finger or hide a revealed row.
+    if (state.swiping || document.querySelector('.swipe-wrap.open-left, .swipe-wrap.open-right')) return;
+    state.chatsDirty = false;
+    renderChats();
+  } catch (_) {}
+}
+
+function renderChats() {
+  const list = $('chat-list');
+  list.textContent = '';
+  const archived = state.chats.filter((c) => c.archived);
+  const active = state.chats.filter((c) => !c.archived);
+  if (state.showArchived && !archived.length) state.showArchived = false;
+  if (state.showArchived) {
+    const back = el('div', 'archive-row', '← Archived');
+    back.addEventListener('click', () => { state.showArchived = false; renderChats(); });
+    list.appendChild(back);
+    drawChatItems(list, archived, 'no archived chats');
+    return;
+  }
+  if (archived.length) {
+    const row = el('div', 'archive-row');
+    row.appendChild(el('span', 'archive-ico', '🗄'));
+    row.appendChild(el('span', 'archive-label', 'Archived'));
+    // Total unread messages across archived chats (what WhatsApp shows in the Archived row).
+    const unread = archived.reduce((n, c) => n + (c.unread || 0), 0);
+    if (unread > 0) row.appendChild(el('span', 'archive-count', String(unread)));
+    row.addEventListener('click', () => { state.showArchived = true; renderChats(); });
+    list.appendChild(row);
+  }
+  drawChatItems(list, active, 'no chats yet — they appear here once the bot sees messages');
+}
+
+function drawChatItems(list, chats, emptyText) {
+  if (!chats.length) { list.appendChild(el('div', 'empty', emptyText)); return; }
+  for (const c of chats) {
+    const item = el('div', 'chat-item' + (c.jid === state.currentJid ? ' active' : ''));
+    const av = el('span', 'avatar');
+    setAvatar(av, c.jid, c.name || c.number);
+    const col = el('div', 'chat-col');
+    const row1 = el('div', 'row1');
+    row1.appendChild(el('span', 'name', c.isGroup ? '👥 ' + c.name : c.name));
+    row1.appendChild(el('span', 'time', fmtTime(c.lastTs)));
+    if (c.unread > 0) row1.appendChild(el('span', 'unread', String(c.unread)));
+    col.appendChild(row1);
+    col.appendChild(el('div', 'preview', c.preview));
+    item.appendChild(av);
+    item.appendChild(col);
+    const wrap = el('div', 'swipe-wrap');
+    item.addEventListener('click', () => {
+      if (wrap.classList.contains('open-left') || wrap.classList.contains('open-right')) { closeSwipe(wrap); return; }
+      openChat(c.jid, c.name, c.isGroup);
+    });
+    wrap.appendChild(chatSwipeActions(c, 'left'));
+    wrap.appendChild(chatSwipeActions(c, 'right'));
+    wrap.appendChild(item);
+    attachChatSwipe(wrap, item);
+    list.appendChild(wrap);
+  }
+}
+
+// Swipe-left reveals More / Archive; swipe-right reveals Unread / Pin.
+function chatSwipeActions(c, side) {
+  const box = el('div', 'swipe-actions ' + side);
+  const buttons = side === 'left'
+    ? [
+        { label: 'More', cls: 'more', run: () => openChat(c.jid, c.name, c.isGroup) },
+        { label: c.archived ? 'Unarchive' : 'Archive', cls: 'archive', run: () => chatAction(c, c.archived ? 'unarchive' : 'archive') },
+      ]
+    : [
+        { label: c.unread > 0 ? 'Read' : 'Unread', cls: 'unread', run: () => chatAction(c, c.unread > 0 ? 'markRead' : 'markUnread') },
+        { label: c.pinned ? 'Unpin' : 'Pin', cls: 'pin', run: () => chatAction(c, c.pinned ? 'unpin' : 'pin') },
+      ];
+  for (const b of buttons) {
+    const btn = el('button', 'swipe-btn ' + b.cls, b.label);
+    btn.type = 'button';
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      closeSwipe(box.parentElement);
+      b.run();
+    });
+    box.appendChild(btn);
+  }
+  return box;
+}
+
+function closeSwipe(wrap) {
+  if (!wrap) return;
+  wrap.classList.remove('open-left', 'open-right');
+  const item = wrap.querySelector('.chat-item');
+  if (item) item.style.transform = '';
+}
+
+async function chatAction(c, action) {
+  try {
+    await postJson('/api/chat/action', { jid: c.jid, action });
+    await loadChats();
+  } catch (err) {
+    alert(err.message || 'That action failed');
+  }
+}
+
+function attachChatSwipe(wrap, item) {
+  const OPEN = 150, SNAP = 80;
+  let x0 = null, y0 = null, dx = 0, locked = false, startOpen = null;
+  item.addEventListener('touchstart', (ev) => {
+    const t = ev.touches[0];
+    x0 = t.clientX; y0 = t.clientY; dx = 0; locked = false;
+    startOpen = wrap.classList.contains('open-left') ? -OPEN : wrap.classList.contains('open-right') ? OPEN : 0;
+    item.style.transition = 'none';
+    state.swiping = true;
+  }, { passive: true });
+  item.addEventListener('touchmove', (ev) => {
+    if (x0 == null) return;
+    const t = ev.touches[0];
+    const mx = t.clientX - x0, my = t.clientY - y0;
+    if (!locked) {
+      if (Math.abs(my) > 12 && Math.abs(my) > Math.abs(mx)) { x0 = null; return; } // vertical scroll
+      if (Math.abs(mx) > 12) locked = true; else return;
+    }
+    dx = mx;
+    const pos = Math.max(-OPEN, Math.min(OPEN, startOpen + dx));
+    item.style.transform = `translateX(${pos}px)`;
+  }, { passive: true });
+  const end = () => {
+    state.swiping = false;
+    if (x0 == null && !locked) { if (state.chatsDirty) renderChats(); return; }
+    const pos = startOpen + dx;
+    x0 = null; locked = false;
+    item.style.transition = '';
+    wrap.classList.remove('open-left', 'open-right');
+    if (Math.abs(dx) < 12) { closeSwipe(wrap); return; }
+    if (pos <= -SNAP) { wrap.classList.add('open-left'); item.style.transform = `translateX(-${OPEN}px)`; }
+    else if (pos >= SNAP) { wrap.classList.add('open-right'); item.style.transform = `translateX(${OPEN}px)`; }
+    else item.style.transform = '';
+    dx = 0;
+    if (state.chatsDirty && !document.querySelector('.swipe-wrap.open-left, .swipe-wrap.open-right')) {
+      state.chatsDirty = false;
+      renderChats();
+    }
+  };
+  item.addEventListener('touchend', end);
+  item.addEventListener('touchcancel', end);
+}
+
+function openChat(jid, name, isGroup) {
+  state.currentJid = jid;
+  state.currentName = name || jid.split('@')[0];
+  state.currentIsGroup = !!isGroup;
+  state.readOnly = String(jid).endsWith('@newsletter');
+  state.historyGen++;
+  state.groupCanSend = null;
+  state.memory = []; state.history = []; state.hasMore = false;
+  state.olderPromise = null; state.historyFailures = 0; state.historyRetryAt = 0;
+  setHistoryStatus('');
+  state.presence = null; state.lastSeen = null;
+  state.mentions = new Map();
+  $('app').classList.add('chat-open');
+  $('chat-title').textContent = state.currentName;
+  $('chat-sub').textContent = jid.endsWith('@s.whatsapp.net') ? '+' + jid.split('@')[0] : '';
+  setAvatar($('head-avatar'), jid, state.currentName);
+  $('chat-presence').textContent = '';
+  $('chat-presence').className = '';
+  setReply(null);
+  setEditing(null);
+  $('in-search').hidden = true;
+  $('messages').textContent = '';
+  setComposerEnabled();
+  const gen = state.historyGen;
+  loadMessages().then(() => { if (gen === state.historyGen) autoLoadHistory(); });
+  $('send-text').focus();
+}
+
+function closeChat() {
+  state.historyGen++;
+  setHistoryStatus('');
+  stopTyping();
+  cancelRecording();
+  setReply(null);
+  setEditing(null);
+  $('app').classList.remove('chat-open');
+  state.currentJid = null;
+  $('messages').textContent = '';
+  $('chat-title').textContent = 'select a chat';
+  $('chat-sub').textContent = 'recent chats appear here as the bot sees messages';
+  $('chat-presence').textContent = '';
+  $('head-avatar').textContent = '';
+  $('in-search').hidden = true;
+  setComposerEnabled();
+}
+
+/* ── presence header: typing / recording / online / last seen ──────────── */
+
+function renderPresence() {
+  const pc = $('chat-presence');
+  if (state.presence === 'composing') { pc.textContent = 'typing…'; pc.className = 'typing'; }
+  else if (state.presence === 'recording') { pc.textContent = 'recording audio…'; pc.className = 'typing'; }
+  else if (state.presence === 'available') { pc.textContent = 'online'; pc.className = 'online'; }
+  else if (state.lastSeen) { pc.textContent = 'last seen ' + fmtLastSeen(state.lastSeen); pc.className = ''; }
+  else { pc.textContent = ''; pc.className = ''; }
+}
+
+/* ── typing indicators (outgoing) ──────────────────────────────────────── */
+
+let typingState = false;
+let lastTypingSent = 0;
+function sendTyping(composing) {
+  if (!state.currentJid || !state.connected) return;
+  const now = Date.now();
+  if (composing && typingState && now - lastTypingSent < 2000) return;
+  typingState = composing;
+  lastTypingSent = now;
+  api('/api/typing', { method: 'POST', body: JSON.stringify({ jid: state.currentJid, composing }) }).catch(() => {});
+}
+function stopTyping() {
+  if (!typingState) return;
+  typingState = false;
+  if (!state.currentJid) return;
+  api('/api/typing', { method: 'POST', body: JSON.stringify({ jid: state.currentJid, composing: false }) }).catch(() => {});
+}
+
+/* ── message rendering ─────────────────────────────────────────────────── */
+
+function mediaSrc(m) {
+  return '/api/media?jid=' + encodeURIComponent(state.currentJid) + '&id=' + encodeURIComponent(m.id);
+}
+
+const MEDIA_LABELS_UI = { image: '📷 Photo', video: '🎬 Video', audio: '🎵 Voice note', sticker: '🩹 Sticker', document: '📄 Document' };
+function previewText(m) {
+  if (m.text) return m.text;
+  if (m.media) return MEDIA_LABELS_UI[m.media.kind] || '📎 Media';
+  return 'message';
+}
+
+function ticksEl(status) {
+  const s = el('span', 'ticks');
+  if (status === 0) { s.textContent = '⚠️'; s.classList.add('err'); s.title = 'failed to send'; }
+  else if (status === 1) { s.textContent = '🕐'; s.title = 'sending'; }
+  else if (status === 2) { s.textContent = '✓'; s.title = 'sent'; }
+  else if (status === 3) { s.textContent = '✓✓'; s.title = 'delivered'; }
+  else { s.textContent = '✓✓'; s.classList.add('read'); s.title = 'read'; }
+  return s;
+}
+
+function textNodeWithMentions(text) {
+  const frag = document.createDocumentFragment();
+  for (const part of String(text || '').split(/(@\d{5,20})/)) {
+    if (/^@\d{5,20}$/.test(part)) frag.appendChild(el('span', 'mention', part));
+    else if (part) frag.appendChild(document.createTextNode(part));
+  }
+  return frag;
+}
+
+function combinedMessages() {
+  const seen = new Set();
+  const out = [];
+  for (const m of [...state.history, ...state.memory]) {
+    if (m.id && seen.has(m.id)) continue;
+    if (m.id) seen.add(m.id);
+    out.push(m);
+  }
+  return out;
+}
+
+async function loadMessages() {
+  if (!state.currentJid || state.loadingJid === state.currentJid) return;
+  const jid = state.currentJid;
+  state.loadingJid = jid;
+  try {
+    const r = await api('/api/messages?jid=' + encodeURIComponent(jid) + '&limit=200');
+    if (jid !== state.currentJid) return;
+    // The poll runs every 1.2 s. Rebuilding the list each time recreates every video and
+    // image, so only re-render when something actually changed.
+    const sig = jid + '|' + JSON.stringify(r.messages || []);
+    // Pending bubbles expire by time, so keep refreshing while any are waiting.
+    const unchanged = sig === state.lastMsgSig && !state.pending.length;
+    state.lastMsgSig = sig;
+    state.memory = r.messages || [];
+    if (!state.history.length) state.hasMore = !!r.hasMore;
+    if (r.groupAccess) state.groupCanSend = r.groupAccess.canSend !== false;
+    setComposerEnabled();
+    state.presence = r.presence || null;
+    state.lastSeen = r.lastSeen || null;
+    renderPresence();
+    if (!unchanged) renderMessages(true);
+  } catch (_) {} finally {
+    if (state.loadingJid === jid) state.loadingJid = null;
+  }
+}
+
+// Sent messages still waiting for WhatsApp's copy to reach the poll. A pending bubble is
+// dropped once the real message appears, or after 30 seconds.
+function pendingRows(all) {
+  const now = Date.now();
+  state.pending = state.pending.filter((p) => now - p.ts < 30000 &&
+    !(p.jid === state.currentJid && all.some((m) => m.fromMe && m.text === p.text && m.ts >= p.ts - 15000)));
+  return state.pending.filter((p) => p.jid === state.currentJid);
+}
+
+function renderMessages(scrollToBottomIfNear) {
+  const box = $('messages');
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  // Distance from the bottom is what stays stable when older rows are prepended.
+  const distanceFromBottom = box.scrollHeight - box.scrollTop;
+  const all = combinedMessages();
+  box.textContent = '';
+  box.appendChild(historyEl);
+  box.appendChild(el('div', 'e2e-notice', '🔒 Messages and calls are end-to-end encrypted. Only people in this chat can read, listen to, or share them.'));
+  if (!all.length) box.appendChild(el('div', 'empty', 'no recent messages — the store keeps the latest per chat'));
+
+  let prev = null;
+  let lastDay = null;
+  for (const m of all) {
+    const day = m.ts ? new Date(m.ts).toDateString() : null;
+    if (day && day !== lastDay) {
+      box.appendChild(el('div', 'date-sep', dayLabel(m.ts)));
+      lastDay = day;
+    }
+    const cont = !!prev && prev.sender === m.sender && prev.fromMe === m.fromMe &&
+      !prev.media && !m.media && !prev.poll && !m.poll && (!m.ts || !prev.ts || m.ts - prev.ts < 10 * 60 * 1000);
+    box.appendChild(renderRow(m, cont));
+    prev = m;
+  }
+  for (const p of pendingRows(all)) box.appendChild(renderRow(p, false));
+  if (scrollToBottomIfNear && nearBottom) box.scrollTop = box.scrollHeight;
+  else box.scrollTop = Math.max(0, box.scrollHeight - distanceFromBottom);
+  refreshOpenMenus();
+}
+
+// Swipe a bubble to the right to quote it (WhatsApp-style reply).
+function attachSwipeReply(row, bubble, m) {
+  if (m.pending || m.deleted || m.history) return;
+  const THRESHOLD = 60;
+  let x0 = null, y0 = null, dx = 0, locked = false;
+  const hint = el('span', 'swipe-hint', '↩');
+  row.appendChild(hint);
+  row.addEventListener('touchstart', (ev) => {
+    // Touches on media controls (video, audio, buttons, links) belong to that control, not to the swipe.
+    if (isInteractive(ev.target)) { x0 = null; return; }
+    const t = ev.touches[0];
+    x0 = t.clientX; y0 = t.clientY; dx = 0; locked = false;
+  }, { passive: true });
+  row.addEventListener('touchmove', (ev) => {
+    if (x0 == null) return;
+    const t = ev.touches[0];
+    const mx = t.clientX - x0, my = t.clientY - y0;
+    if (!locked) {
+      if (Math.abs(my) > 12 && Math.abs(my) > Math.abs(mx)) { x0 = null; return; } // vertical scroll
+      if (Math.abs(mx) > 12) locked = true; else return;
+    }
+    dx = Math.max(0, Math.min(mx, 90));
+    bubble.style.transform = `translateX(${dx}px)`;
+    hint.style.opacity = dx > THRESHOLD ? '1' : String(Math.min(dx / THRESHOLD, 0.6));
+  }, { passive: true });
+  const end = () => {
+    const fire = dx >= THRESHOLD;
+    x0 = null; dx = 0; locked = false;
+    bubble.style.transition = 'transform .15s';
+    bubble.style.transform = '';
+    hint.style.opacity = '0';
+    setTimeout(() => { bubble.style.transition = ''; }, 160);
+    if (fire) setReply(m);
+  };
+  row.addEventListener('touchend', end);
+  row.addEventListener('touchcancel', end);
+}
+
+function renderRow(m, cont) {
+  const row = el('div', 'msg-row ' + (m.fromMe ? 'me' : 'them') + (cont ? ' cont' : ''));
+  if (m.id) row.setAttribute('data-msg-id', m.id);
+  const bubble = el('div', 'bubble' + (m.deleted ? ' deleted' : '') + (m.notice ? ' notice' : ''));
+  attachSwipeReply(row, bubble, m);
+  if (!m.fromMe && state.currentIsGroup && m.sender && !cont) {
+    bubble.appendChild(el('div', 'sender', m.pushName || m.sender.split('@')[0]));
+  }
+  if (m.forwarded) bubble.appendChild(el('div', 'fwd', '↪ Forwarded'));
+  if (m.quoted) {
+    const q = el('div', 'quote');
+    q.addEventListener('click', (ev) => { ev.stopPropagation(); jumpToMessage(m.quoted.id); });
+    q.appendChild(el('div', 'quote-name', m.quoted.pushName || (m.quoted.sender || '').split('@')[0] || '…'));
+    q.appendChild(el('div', 'quote-text', m.quoted.text || MEDIA_LABELS_UI[m.quoted.mediaKind] || ''));
+    bubble.appendChild(q);
+  }
+
+  if (m.poll) {
+    bubble.appendChild(renderPoll(m));
+  } else if (m.media && m.media.kind === 'audio' && !m.deleted) {
+    bubble.appendChild(renderVoice(m));
+  } else if (m.media && !m.deleted) {
+    bubble.appendChild(renderMedia(m));
+    if (m.text) bubble.appendChild(textNodeWithMentions(m.text));
+  } else {
+    bubble.appendChild(textNodeWithMentions(m.text));
+  }
+
+  if (m.reactions && m.reactions.length && !m.deleted) {
+    const rxRow = el('div', 'rx-row');
+    for (const r of m.reactions) {
+      const pill = el('button', 'rx-pill' + (r.byMe ? ' by-me' : ''));
+      pill.textContent = r.emoji + ' ' + r.count;
+      pill.title = r.byMe ? 'tap to remove your reaction' : 'tap to add your reaction';
+      pill.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        try { await postJson('/api/react', { jid: state.currentJid, msgId: m.id, emoji: r.byMe ? '' : r.emoji }); loadMessages(); }
+        catch (err) { alert(err.message || 'react failed'); }
+      });
+      rxRow.appendChild(pill);
+    }
+    bubble.appendChild(rxRow);
+  }
+
+  if (!m.deleted) bubble.appendChild(actionsBar(m, bubble));
+
+  const ts = el('div', 'ts');
+  if (m.edited) ts.appendChild(el('span', 'edited', 'edited'));
+  ts.appendChild(document.createTextNode(fmtTime(m.ts)));
+  if (m.fromMe && m.status != null && !m.deleted) ts.appendChild(ticksEl(m.status));
+  bubble.appendChild(ts);
+
+  attachMessageGestures(row, bubble, m);
+
+  row.appendChild(bubble);
+  return row;
+}
+
+function actionsBar(m, bubble) {
+  const actions = el('div', 'bubble-actions');
+  const add = (label, title, fn) => {
+    const b = el('button', '', label);
+    b.title = title;
+    b.addEventListener('click', (ev) => { ev.stopPropagation(); fn(); });
+    actions.appendChild(b);
+  };
+  add('↩', 'reply', () => setReply(m));
+  add('😀', 'add reaction', () => openRxBar(m, bubble));
+  add('↪', 'forward', () => openForward(m));
+  const age = Date.now() - (m.ts || 0);
+  if (m.fromMe && m.text && !m.media && !m.poll && age < MY_EDIT_MS) add('✎', 'edit', () => setEditing(m));
+  if (m.fromMe && age < MY_DELETE_MS) add('🗑', 'delete for everyone', () => deleteMessage(m));
+  return actions;
+}
+
+function renderMedia(m) {
+  const mediaBox = el('div', 'media');
+  const src = mediaSrc(m);
+  if (m.media.kind === 'image' || m.media.kind === 'sticker') {
+    const img = el('img', 'media-img');
+    img.src = src;
+    img.alt = m.media.fileName || 'image';
+    img.addEventListener('click', (ev) => { ev.stopPropagation(); window.open(src, '_blank'); });
+    mediaBox.appendChild(img);
+  } else if (m.media.kind === 'video') {
+    const v = el('video', 'media-video');
+    v.controls = true;
+    v.playsInline = true;
+    v.preload = 'metadata';
+    v.src = src;
+    // If this browser cannot play the file, offer a download instead of a blank box.
+    v.addEventListener('error', () => {
+      const card = el('a', 'doc-card');
+      card.href = src;
+      card.target = '_blank';
+      card.appendChild(el('span', 'doc-ic', '🎬'));
+      const col = el('span', 'doc-col');
+      col.appendChild(el('span', 'doc-name', m.media.fileName || 'video'));
+      col.appendChild(el('span', 'doc-sub', "can't play here · tap to open"));
+      card.appendChild(col);
+      v.replaceWith(card);
+    });
+    mediaBox.appendChild(v);
+  } else {
+    const card = el('a', 'doc-card');
+    card.href = src;
+    card.target = '_blank';
+    card.appendChild(el('span', 'doc-ic', '📄'));
+    const col = el('span', 'doc-col');
+    col.appendChild(el('span', 'doc-name', m.media.fileName || 'document'));
+    col.appendChild(el('span', 'doc-sub', (m.media.mime || 'file') + ' · tap to download'));
+    card.appendChild(col);
+    mediaBox.appendChild(card);
+  }
+  return mediaBox;
+}
+
+// Only one voice note plays at a time (like WhatsApp).
+let activeVoice = null;
+
+function renderVoice(m) {
+  const box = el('div', 'media');
+  const bars = m.media.waveform && m.media.waveform.length ? m.media.waveform : null;
+  const audio = el('audio', 'media-audio');
+  audio.controls = true;
+  audio.preload = 'metadata';
+  audio.src = mediaSrc(m);
+
+  // Some recordings report Infinity/NaN duration until fully buffered; fall back
+  // to the length WhatsApp sent with the message.
+  const knownSecs = Number(m.media.seconds) || 0;
+  const hasRealDuration = () => isFinite(audio.duration) && audio.duration > 0;
+  const durationOf = () => (hasRealDuration() ? audio.duration : knownSecs);
+
+  let wave = null;
+  let spans = [];
+  let frame = 0;
+  const paint = () => {
+    if (!spans.length) return;
+    const dur = durationOf();
+    const ratio = dur > 0 ? Math.min(1, Math.max(0, audio.currentTime / dur)) : 0;
+    const lit = ratio * spans.length;
+    for (let i = 0; i < spans.length; i++) spans[i].classList.toggle('played', i < lit);
+  };
+  // Smooth progress while playing (timeupdate alone only fires ~4x/second).
+  const loop = () => {
+    paint();
+    frame = audio.paused ? 0 : requestAnimationFrame(loop);
+  };
+
+  if (bars) {
+    wave = el('div', 'wave');
+    wave.title = 'Tap to seek';
+    for (const v of bars) {
+      const bar = el('span');
+      bar.style.height = Math.max(3, Math.round((v / 99) * 28)) + 'px';
+      wave.appendChild(bar);
+    }
+    spans = Array.from(wave.children);
+    wave.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (!hasRealDuration()) { audio.play().catch(() => {}); return; }
+      const rect = wave.getBoundingClientRect();
+      const f = Math.min(1, Math.max(0, (ev.clientX - rect.left) / (rect.width || 1)));
+      audio.currentTime = f * audio.duration;
+      paint();
+      audio.play().catch(() => {});
+    });
+  }
+
+  audio.addEventListener('play', () => {
+    if (activeVoice && activeVoice !== audio) activeVoice.pause();
+    activeVoice = audio;
+    if (!frame) frame = requestAnimationFrame(loop);
+  });
+  audio.addEventListener('pause', paint);
+  audio.addEventListener('ended', () => { audio.currentTime = 0; paint(); });
+  for (const ev of ['timeupdate', 'seeked', 'loadedmetadata', 'durationchange']) {
+    audio.addEventListener(ev, paint);
+  }
+
+  if (wave) box.appendChild(wave);
+  box.appendChild(audio);
+  if (m.media.seconds) box.appendChild(el('div', 'poll-meta', '🎙️ ' + m.media.seconds + 's'));
+  return box;
+}
+
+function renderPoll(m) {
+  const p = m.poll;
+  const box = el('div', 'poll');
+  box.appendChild(el('div', 'poll-q', '📊 ' + p.name));
+  for (const opt of p.options) {
+    const btn = el('button', 'poll-opt' + (opt.byMe ? ' mine' : ''));
+    btn.type = 'button';
+    const bar = el('div', 'bar');
+    bar.style.width = (p.totalVotes ? Math.round((opt.count / p.totalVotes) * 100) : 0) + '%';
+    btn.appendChild(bar);
+    btn.appendChild(el('span', '', opt.text));
+    btn.appendChild(el('span', '', String(opt.count)));
+    btn.addEventListener('click', (ev) => { ev.stopPropagation(); votePoll(m, opt.text); });
+    box.appendChild(btn);
+  }
+  const multi = p.selectableCount !== 1;
+  box.appendChild(el('div', 'poll-meta', p.totalVotes + (p.totalVotes === 1 ? ' vote' : ' votes') + ' · ' + (multi ? 'select any' : 'select one')));
+  return box;
+}
+
+async function postJson(path, body) {
+  const res = await api(path, { method: 'POST', body: JSON.stringify(body) });
+  if (!res || res.ok === false) throw new Error((res && res.error) || 'request failed');
+  return res;
+}
+
+async function votePoll(m, optionText) {
+  const p = m.poll;
+  let next;
+  if (p.selectableCount === 1) {
+    next = p.myVote.includes(optionText) ? [] : [optionText];
+  } else {
+    next = p.myVote.includes(optionText) ? p.myVote.filter((o) => o !== optionText) : [...p.myVote, optionText];
+  }
+  try {
+    await postJson('/api/pollvote', { jid: state.currentJid, pollId: m.id, options: next });
+    loadMessages();
+  } catch (err) { alert(err.message || 'vote failed'); }
+}
+
+/* ── history paging (automatic) ───────────────────────────────────────── */
+
+const HISTORY_PAGE = 100;        // rows per request (server max is 200)
+const HISTORY_MAX = 1000;        // most older messages loaded per chat
+const HISTORY_RETRY_MS = 3000;
+const HISTORY_MAX_FAILURES = 2;  // consecutive failures before the auto-loader gives up
+
+const historyEl = document.createElement('div');
+historyEl.id = 'history-status';
+historyEl.hidden = true;
+historyEl.appendChild(document.createElement('span'));
+
+function setHistoryStatus(text, isError) {
+  if (!text) { historyEl.hidden = true; return; }
+  historyEl.hidden = false;
+  historyEl.className = isError ? 'err' : '';
+  historyEl.firstChild.textContent = text;
+}
+
+// Fetch one older page. Returns 'added' | 'none' | 'failed' | 'stale' | 'cooldown'.
+// Concurrent callers share the in-flight request, so nothing is fetched twice.
+function loadOlder() {
+  if (state.olderPromise) return state.olderPromise;
+  if (!state.currentJid || !state.hasMore) return Promise.resolve('none');
+  if (state.history.length >= HISTORY_MAX) {
+    state.hasMore = false;
+    setHistoryStatus('showing the latest ' + HISTORY_MAX + ' messages');
+    return Promise.resolve('none');
+  }
+  if (Date.now() < state.historyRetryAt) return Promise.resolve('cooldown');
+
+  const gen = state.historyGen;
+  const jid = state.currentJid;
+  const oldest = combinedMessages().find((m) => m.ts);
+  // Cursor = the oldest message on screen (timestamp + id, so ties are not skipped).
+  const url = '/api/messages?jid=' + encodeURIComponent(jid) +
+    '&before=' + (oldest ? oldest.ts : Date.now() + 1000) +
+    (oldest && oldest.id ? '&beforeId=' + encodeURIComponent(oldest.id) : '') +
+    '&limit=' + HISTORY_PAGE;
+
+  setHistoryStatus('loading earlier messages…');
+  const p = (async () => {
+    try {
+      const r = await api(url);
+      if (gen !== state.historyGen) return 'stale';
+      if (!r || r.ok === false) throw new Error((r && r.error) || 'history request failed');
+      const known = new Set(combinedMessages().map((m) => m.id));
+      const fresh = (r.messages || []).filter((m) => !known.has(m.id));
+      state.history = [...fresh, ...state.history];
+      // Stop when the server reports nothing older, or when a page adds nothing new.
+      state.hasMore = !!r.hasMore && fresh.length > 0;
+      state.historyFailures = 0;
+      setHistoryStatus('');
+      renderMessages(false);   // keeps the reader's position (see renderMessages)
+      return fresh.length ? 'added' : 'none';
+    } catch (_) {
+      if (gen !== state.historyGen) return 'stale';
+      state.historyFailures++;
+      state.historyRetryAt = Date.now() + HISTORY_RETRY_MS;
+      setHistoryStatus("couldn't load older messages · scroll up to retry", true);
+      return 'failed';
+    }
+  })().finally(() => {
+    if (gen === state.historyGen) state.olderPromise = null;
+  });
+  state.olderPromise = p;
+  return p;
+}
+
+// Runs after a chat opens: keeps pulling older pages until the history is
+// exhausted, the cap is reached, or repeated failures stop it.
+async function autoLoadHistory() {
+  const gen = state.historyGen;
+  while (gen === state.historyGen && state.hasMore) {
+    const res = await loadOlder();
+    if (gen !== state.historyGen) return;
+    if (res === 'added') continue;
+    if (res === 'failed') {
+      if (state.historyFailures > HISTORY_MAX_FAILURES) return;
+      await new Promise((r) => setTimeout(r, HISTORY_RETRY_MS));
+      continue;
+    }
+    return; // none | cooldown | stale
+  }
+}
+
+/* ── in-chat search with jump-to ───────────────────────────────────────── */
+
+function jumpToMessage(id) {
+  if (!id) return false;
+  const row = document.querySelector('#messages .msg-row[data-msg-id="' + CSS.escape(id) + '"]');
+  if (!row) return false;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.classList.add('flash');
+  setTimeout(() => row.classList.remove('flash'), 1600);
+  return true;
+}
+
+// Load older pages until the message is on screen (max 15 pages).
+async function reachMessage(id) {
+  for (let i = 0; i < 15; i++) {
+    if (jumpToMessage(id)) return true;
+    if (!state.hasMore) break;
+    if ((await loadOlder()) !== 'added') break;
+  }
+  return jumpToMessage(id);
+}
+
+/* ── message an admin (locked groups) ──────────────────────────────────── */
+
+let adminsList = [];
+
+function closeAdmins() { $('admins-modal').hidden = true; }
+
+async function openAdmins() {
+  if (!state.currentJid || !state.currentIsGroup) return;
+  const jid = state.currentJid;
+  $('admins-modal').hidden = false;
+  $('admins-search').value = '';
+  const list = $('admins-list');
+  list.textContent = '';
+  list.appendChild(el('div', 'empty', 'loading admins…'));
+  try {
+    const r = await api('/api/groupmembers?jid=' + encodeURIComponent(jid));
+    if (jid !== state.currentJid || $('admins-modal').hidden) return;
+    if (r.ok === false) throw new Error(r.error || 'failed');
+    adminsList = (r.members || []).filter((m) => m.admin && !m.me);
+    renderAdmins('');
+  } catch (_) {
+    list.textContent = '';
+    list.appendChild(el('div', 'empty', "couldn't load admins"));
+  }
+}
+
+function renderAdmins(query) {
+  const list = $('admins-list');
+  list.textContent = '';
+  const q = String(query || '').trim().toLowerCase();
+  const shown = adminsList.filter((m) => !q || String(m.name || '').toLowerCase().includes(q) || String(m.jid).toLowerCase().includes(q));
+  if (!shown.length) {
+    list.appendChild(el('div', 'empty', q ? 'no admin matches' : 'no admins found'));
+    return;
+  }
+  for (const m of shown) {
+    const name = m.name || String(m.jid).split('@')[0];
+    const row = el('button', 'admin-item');
+    row.type = 'button';
+    const av = el('span', 'admin-av');
+    setAvatar(av, m.jid, /^[A-Za-z]/.test(name) ? name : '#');
+    row.appendChild(av);
+    row.appendChild(el('span', '', name));
+    row.addEventListener('click', () => {
+      closeAdmins();
+      openChat(m.jid, name, false);   // opens a direct chat with that admin
+    });
+    list.appendChild(row);
+  }
+}
+
+$('admin-only-link').addEventListener('click', openAdmins);
+$('admins-close').addEventListener('click', closeAdmins);
+$('admins-search').addEventListener('input', (e) => renderAdmins(e.target.value));
+$('admins-modal').addEventListener('click', (e) => { if (e.target.id === 'admins-modal') closeAdmins(); });
+
+$('head-search').addEventListener('click', () => {
+  const box = $('in-search');
+  box.hidden = !box.hidden;
+  if (!box.hidden) { $('in-search-input').value = ''; $('in-search-input').focus(); }
+});
+
+let inSearchTimer = null;
+$('in-search-input').addEventListener('input', (e) => {
+  clearTimeout(inSearchTimer);
+  const q = e.target.value.trim();
+  if (!q) { $('in-search-results').textContent = ''; return; }
+  inSearchTimer = setTimeout(() => runInChatSearch(q), 250);
+});
+
+async function runInChatSearch(q) {
+  const wrap = $('in-search-results');
+  wrap.textContent = '';
+  const lower = q.toLowerCase();
+  const local = combinedMessages().filter((m) => (m.text || '').toLowerCase().includes(lower)).reverse();
+  const seen = new Set(local.map((m) => m.id));
+  const items = local.map((m) => ({ id: m.id, text: m.text, ts: m.ts }));
+  try {
+    const r = await api('/api/search?q=' + encodeURIComponent(q) + '&limit=30&jid=' + encodeURIComponent(state.currentJid));
+    for (const hit of r.results || []) {
+      if (!seen.has(hit.msgId)) items.push({ id: hit.msgId, text: hit.text, ts: hit.ts });
+    }
+  } catch (_) {}
+  if (!items.length) { wrap.appendChild(el('div', 'empty', 'no matches')); return; }
+  for (const it of items.slice(0, 40)) {
+    const row = el('div', 'sr-item');
+    row.appendChild(el('span', '', (it.text || '').slice(0, 90)));
+    row.appendChild(el('span', 'sr-ts', fmtTime(it.ts)));
+    row.addEventListener('click', async () => {
+      const ok = await reachMessage(it.id);
+      if (!ok) alert('that message is no longer in history');
+    });
+    wrap.appendChild(row);
+  }
+}
+
+/* ── reactions quick bar ───────────────────────────────────────────────── */
+
+let rxTarget = null;
+const RX_QUICK = ['❤️', '👍', '😂', '😮', '😢', '🙏'];
+let rxBubble = null;
+function closeRxBar() { $('rx-bar').classList.remove('show'); rxTarget = null; rxBubble = null; }
+function positionRxBar(bubble) {
+  const bar = $('rx-bar');
+  const rect = bubble.getBoundingClientRect();
+  const w = bar.offsetWidth, h = bar.offsetHeight;
+  bar.style.left = Math.min(Math.max(8, rect.right - w - 6), window.innerWidth - w - 8) + 'px';
+  bar.style.top = Math.max(8, rect.top - h - 8) + 'px';
+}
+function openRxBar(m, bubble) {
+  rxTarget = m; rxBubble = bubble;
+  fillRxBar(RX_QUICK);
+  $('rx-bar').classList.add('show');
+  positionRxBar(bubble);
+}
+const RX_MORE = ['🔥', '🎉', '👏', '😍', '🤣', '😡', '🤔', '💯', '👀', '🙌', '😭', '🥰', '👎', '🤝', '😎', '✅', '❌', '🫡', '🥳', '💔', '😅', '🤦', '🤷', '🙈'];
+function rxButton(emoji) {
+  const b = el('button', '', emoji);
+  b.title = 'react ' + emoji;
+  b.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    if (!rxTarget || !state.currentJid) return;
+    const msgId = rxTarget.id;
+    closeRxBar();
+    try { await postJson('/api/react', { jid: state.currentJid, msgId, emoji }); loadMessages(); }
+    catch (err) { alert(err.message || 'react failed'); }
+  });
+  return b;
+}
+function fillRxBar(list) {
+  const bar = $('rx-bar');
+  bar.textContent = '';
+  for (const e of list) bar.appendChild(rxButton(e));
+  if (list === RX_QUICK) {
+    const more = el('button', 'rx-more', '+');
+    more.type = 'button';
+    more.title = 'more reactions';
+    more.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      fillRxBar(RX_MORE);
+      if (rxBubble) positionRxBar(rxBubble);
+    });
+    bar.appendChild(more);
+  }
+}
+fillRxBar(RX_QUICK);
+document.addEventListener('click', (e) => {
+  const justOpened = Date.now() - menuOpenedAt < 400;   // ignore the click that ends a long press
+  if (!justOpened && !$('rx-bar').contains(e.target)) closeRxBar();
+  if (!justOpened && !msgMenuEl.contains(e.target)) closeMsgMenu();
+  if (!e.target.closest('#emoji-panel, #emoji-btn')) $('emoji-panel').hidden = true;
+  if (!e.target.closest('#mention-list, #send-text')) $('mention-list').hidden = true;
+});
+
+/* ── message menu: long-press / double-tap (phones), right-click (desktop) ─ */
+
+const LONG_PRESS_MS = 450;
+const DOUBLE_TAP_MS = 320;
+const MOVE_TOLERANCE = 10;
+let pressTimer = null;
+let pressState = null;
+let lastTap = { row: null, at: 0 };
+let menuTarget = null, menuBubble = null, menuPage = 'main', menuOpenedAt = 0;
+
+const msgMenuEl = el('div', '');
+msgMenuEl.id = 'msg-menu';
+msgMenuEl.hidden = true;
+document.body.appendChild(msgMenuEl);
+
+const toastEl = el('div', '');
+toastEl.id = 'toast';
+toastEl.hidden = true;
+document.body.appendChild(toastEl);
+let toastTimer = null;
+function toast(text) {
+  toastEl.textContent = text;
+  toastEl.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.hidden = true; }, 1800);
+}
+
+function localSet(name) {
+  try { return new Set(JSON.parse(localStorage.getItem(name) || '[]')); } catch (_) { return new Set(); }
+}
+function saveLocalSet(name, set) {
+  try { localStorage.setItem(name, JSON.stringify([...set])); } catch (_) {}
+}
+const starredSet = localSet('webchat-starred');
+const pinnedSet = localSet('webchat-pinned');
+
+const STATUS_TEXT = { 0: 'failed to send', 1: 'sending', 2: 'sent', 3: 'delivered', 4: 'read', 5: 'played' };
+
+function isInteractive(target) {
+  return !!(target && target.closest && target.closest('button, a, .quote, audio, video, img, .wave, .rx-pill, input, textarea'));
+}
+
+function attachMessageGestures(row, bubble, m) {
+  if (m.deleted || m.pending) return;
+  bubble.addEventListener('touchstart', (ev) => {
+    pressState = null;
+    clearTimeout(pressTimer);
+    if (ev.touches.length !== 1 || isInteractive(ev.target)) return;
+    const t = ev.touches[0];
+    const current = { x: t.clientX, y: t.clientY, fired: false, moved: false };
+    pressState = current;
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
+      if (pressState !== current || current.moved) return;
+      current.fired = true;
+      if (navigator.vibrate) navigator.vibrate(12);
+      openRxBar(m, bubble);
+      openMsgMenu(m, bubble);
+    }, LONG_PRESS_MS);
+  }, { passive: true });
+
+  bubble.addEventListener('touchmove', (ev) => {
+    if (!pressState || pressState.moved) return;
+    const t = ev.touches[0];
+    if (Math.hypot(t.clientX - pressState.x, t.clientY - pressState.y) > MOVE_TOLERANCE) {
+      pressState.moved = true;
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  }, { passive: true });
+
+  bubble.addEventListener('touchend', (ev) => {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+    const st = pressState;
+    pressState = null;
+    if (!st) return;
+    if (st.fired) { ev.preventDefault(); return; }   // long press done: no click after it
+    if (st.moved) return;
+    const now = Date.now();
+    if (lastTap.row === row && now - lastTap.at < DOUBLE_TAP_MS) {
+      lastTap = { row: null, at: 0 };
+      ev.preventDefault();
+      openRxBar(m, bubble);                           // double tap: quick reactions
+      return;
+    }
+    lastTap = { row, at: now };
+  });
+
+  bubble.addEventListener('touchcancel', () => { clearTimeout(pressTimer); pressTimer = null; pressState = null; });
+
+  bubble.addEventListener('dblclick', (ev) => {
+    if (isInteractive(ev.target)) return;
+    ev.preventDefault();
+    openRxBar(m, bubble);
+  });
+
+  bubble.addEventListener('contextmenu', (ev) => {
+    if (isInteractive(ev.target)) return;
+    ev.preventDefault();
+    openMsgMenu(m, bubble);
+  });
+}
+
+function openMsgMenu(m, bubble) {
+  menuTarget = m; menuBubble = bubble; menuPage = 'main'; menuOpenedAt = Date.now();
+  renderMsgMenu();
+}
+
+function closeMsgMenu() {
+  msgMenuEl.hidden = true;
+  menuTarget = null; menuBubble = null;
+}
+
+function renderMsgMenu() {
+  const m = menuTarget;
+  if (!m) return;
+  msgMenuEl.textContent = '';
+  const age = Date.now() - (m.ts || 0);
+  const add = (icon, label, fn, cls) => {
+    const b = el('button', cls || '');
+    b.type = 'button';
+    b.appendChild(el('span', 'ic', icon));
+    b.appendChild(el('span', '', label));
+    b.addEventListener('click', (ev) => { ev.stopPropagation(); fn(); });
+    msgMenuEl.appendChild(b);
+  };
+  if (menuPage === 'main') {
+    add('↩', 'Reply', () => { closeMsgMenu(); setReply(m); });
+    add('↪', 'Forward', () => { closeMsgMenu(); openForward(m); });
+    add('⧉', 'Copy', () => { closeMsgMenu(); copyMessage(m); });
+    if (m.fromMe && m.text && !m.media && !m.poll && age < MY_EDIT_MS) {
+      add('✎', 'Edit', () => { closeMsgMenu(); setEditing(m); });
+    }
+    if (m.fromMe && age < MY_DELETE_MS) {
+      add('🗑', 'Delete', () => { closeMsgMenu(); deleteMessage(m); }, 'danger');
+    }
+    add('⋯', 'More…', () => { menuPage = 'more'; renderMsgMenu(); });
+  } else {
+    add('‹', 'Back', () => { menuPage = 'main'; renderMsgMenu(); }, 'back');
+    add('📌', pinnedSet.has(m.id) ? 'Unpin' : 'Pin', () => { closeMsgMenu(); togglePin(m); });
+    add('ⓘ', 'Info', () => { closeMsgMenu(); openInfo(m); });
+    add('★', starredSet.has(m.id) ? 'Unstar' : 'Star', () => { closeMsgMenu(); toggleStar(m); });
+  }
+  msgMenuEl.hidden = false;
+  positionMsgMenu();
+}
+
+function positionMsgMenu() {
+  if (!menuBubble || msgMenuEl.hidden) return;
+  const rect = menuBubble.getBoundingClientRect();
+  const w = msgMenuEl.offsetWidth, h = msgMenuEl.offsetHeight;
+  const left = menuTarget && menuTarget.fromMe ? rect.right - w : rect.left;
+  // Bubble in the top half: menu goes below it. Bubble in the lower half: menu goes
+  // above it, clear of the reaction bar that sits just above the bubble.
+  const top = rect.top < window.innerHeight / 2 ? rect.bottom + 8 : rect.top - h - 56;
+  msgMenuEl.style.left = Math.min(Math.max(8, left), window.innerWidth - w - 8) + 'px';
+  msgMenuEl.style.top = Math.min(Math.max(8, top), window.innerHeight - h - 8) + 'px';
+}
+
+// Keep an open menu or reaction bar on the right bubble after the 2.5s refresh.
+function refreshOpenMenus() {
+  const bubbleFor = (id) => {
+    const row = id ? document.querySelector('#messages .msg-row[data-msg-id="' + CSS.escape(id) + '"]') : null;
+    return row ? row.querySelector('.bubble') : null;
+  };
+  if (!msgMenuEl.hidden && menuTarget) {
+    const b = bubbleFor(menuTarget.id);
+    if (!b) closeMsgMenu(); else { menuBubble = b; positionMsgMenu(); }
+  }
+  if ($('rx-bar').classList.contains('show') && rxTarget) {
+    const b = bubbleFor(rxTarget.id);
+    if (!b) closeRxBar(); else { rxBubble = b; positionRxBar(b); }
+  }
+}
+
+async function copyMessage(m) {
+  const text = m.text || '';
+  if (!text) { toast('nothing to copy'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('copied');
+  } catch (_) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) {}
+    ta.remove();
+    toast(ok ? 'copied' : "couldn't copy");
+  }
+}
+
+async function togglePin(m) {
+  const pin = !pinnedSet.has(m.id);
+  try {
+    await postJson('/api/pin', { jid: state.currentJid, msgId: m.id, pin });
+    if (pin) pinnedSet.add(m.id); else pinnedSet.delete(m.id);
+    saveLocalSet('webchat-pinned', pinnedSet);
+    toast(pin ? 'pinned for 24 hours' : 'unpinned');
+  } catch (err) { toast(err.message || 'pin failed'); }
+}
+
+async function toggleStar(m) {
+  const star = !starredSet.has(m.id);
+  try {
+    await postJson('/api/star', { jid: state.currentJid, msgId: m.id, star });
+    if (star) starredSet.add(m.id); else starredSet.delete(m.id);
+    saveLocalSet('webchat-starred', starredSet);
+    toast(star ? 'starred' : 'unstarred');
+  } catch (err) { toast(err.message || 'star failed'); }
+}
+
+function openInfo(m) {
+  let modal = document.getElementById('info-modal');
+  if (!modal) {
+    modal = el('div', 'modal');
+    modal.id = 'info-modal';
+    modal.hidden = true;
+    const card = el('div', 'modal-card');
+    card.appendChild(el('h3', '', 'Message info'));
+    const body = el('div', '');
+    body.id = 'info-body';
+    card.appendChild(body);
+    const row = el('div', 'modal-row');
+    const close = el('button', '', 'close');
+    close.type = 'button';
+    close.addEventListener('click', () => { modal.hidden = true; });
+    row.appendChild(close);
+    card.appendChild(row);
+    modal.appendChild(card);
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+    document.body.appendChild(modal);
+  }
+  const body = $('info-body');
+  body.textContent = '';
+  const add = (k, v) => {
+    const r = el('div', 'info-row');
+    r.appendChild(el('span', 'info-k', k));
+    r.appendChild(el('span', 'info-v', v));
+    body.appendChild(r);
+  };
+  add('Sent by', m.fromMe ? 'you' : (m.pushName || (m.sender || '').split('@')[0] || 'unknown'));
+  add(m.fromMe ? 'Sent' : 'Received', m.ts ? new Date(m.ts).toLocaleString() : 'unknown');
+  if (m.fromMe) add('Status', STATUS_TEXT[m.status] || 'unknown');
+  if (m.edited) add('Edited', 'yes');
+  add('Starred', starredSet.has(m.id) ? 'yes' : 'no');
+  add('Pinned', pinnedSet.has(m.id) ? 'yes' : 'no');
+  modal.hidden = false;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { closeMsgMenu(); closeRxBar(); }
+});
+
+/* ── Updates: statuses (24h) and channels ───────────────────────────────── */
+function setTab(tab) {
+  state.tab = tab;
+  $('tab-chats').classList.toggle('active', tab === 'chats');
+  $('tab-calls').classList.toggle('active', tab === 'calls');
+  $('tab-updates').classList.toggle('active', tab === 'updates');
+  $('chat-list').hidden = tab !== 'chats';
+  $('search-wrap').hidden = tab !== 'chats';
+  $('calls-list').hidden = tab !== 'calls';
+  $('updates-list').hidden = tab !== 'updates';
+  if (tab === 'updates') loadUpdates();
+  if (tab === 'calls') loadCalls();
+}
+$('tab-chats').addEventListener('click', () => setTab('chats'));
+$('tab-calls').addEventListener('click', () => setTab('calls'));
+$('tab-updates').addEventListener('click', () => setTab('updates'));
+
+const CALL_LABELS = {
+  answered: 'Answered', missed: 'Missed', declined: 'Declined',
+  rejected: 'Rejected', 'no answer': 'No answer', ringing: 'Ringing', ended: 'Ended',
+};
+async function loadCalls() {
+  try {
+    const r = await api('/api/calls');
+    renderCalls(r.calls || []);
+  } catch (_) {}
+}
+function renderCalls(calls) {
+  const list = $('calls-list');
+  list.textContent = '';
+  if (!calls.length) { list.appendChild(el('div', 'empty', 'no calls yet — they appear here as the bot sees them')); return; }
+  for (const c of calls) {
+    const row = el('div', 'call-row');
+    const av = el('span', 'avatar');
+    setAvatar(av, c.jid, c.name);
+    const meta = el('div', 'call-meta');
+    meta.appendChild(el('div', 'call-name', c.name));
+    const missed = c.outcome === 'missed' || c.outcome === 'declined';
+    const arrow = c.direction === 'outgoing' ? '↗' : '↙';
+    meta.appendChild(el('div', 'call-sub' + (missed ? ' missed' : ''),
+      `${arrow} ${CALL_LABELS[c.outcome] || c.outcome}${c.isVideo ? ' · video' : ''}`));
+    row.appendChild(av);
+    row.appendChild(meta);
+    row.appendChild(el('span', 'call-time', fmtTime(c.ts)));
+    row.addEventListener('click', () => { setTab('chats'); openChat(c.jid, c.name, false); });
+    list.appendChild(row);
+  }
+}
+
+async function loadUpdates() {
+  try {
+    state.updates = await api('/api/updates');
+    renderUpdates();
+  } catch (_) {}
+}
+
+function renderUpdates() {
+  if (!state.updates) return;
+  const statuses = state.updates.statuses || [];
+  const channels = state.updates.channels || [];
+  const unread = statuses.reduce((n, s) => n + (s.unread || 0), 0) +
+    channels.reduce((n, c) => n + (c.unread || 0), 0);
+  const badge = $('updates-badge');
+  badge.hidden = unread === 0;
+  badge.textContent = String(unread);
+
+  const list = $('updates-list');
+  list.textContent = '';
+  list.appendChild(el('div', 'upd-head', 'Status'));
+  if (!statuses.length) {
+    list.appendChild(el('div', 'empty', 'no status updates in the last 24 hours'));
+  } else {
+    const row = el('div', 'status-row');
+    for (const s of statuses) {
+      const item = el('button', 'status-item' + (s.unread ? ' unread' : ''));
+      item.type = 'button';
+      const ring = el('span', 'status-ring');
+      const av = el('span', 'avatar');
+      setAvatar(av, s.sender, s.name);
+      ring.appendChild(av);
+      item.appendChild(ring);
+      item.appendChild(el('span', 'status-name', s.name));
+      item.addEventListener('click', () => openStatusViewer(s.sender, s.name));
+      row.appendChild(item);
+    }
+    list.appendChild(row);
+  }
+
+  list.appendChild(el('div', 'upd-head', 'Channels'));
+  if (!channels.length) list.appendChild(el('div', 'empty', 'no channel posts yet'));
+  for (const c of channels) {
+    const item = el('div', 'chat-item');
+    const av = el('span', 'avatar');
+    setAvatar(av, c.jid, c.name);
+    const col = el('div', 'chat-col');
+    const row1 = el('div', 'row1');
+    row1.appendChild(el('span', 'name', c.name));
+    row1.appendChild(el('span', 'time', fmtTime(c.lastTs)));
+    if (c.unread > 0) row1.appendChild(el('span', 'unread', String(c.unread)));
+    col.appendChild(row1);
+    col.appendChild(el('div', 'preview', c.preview || ''));
+    item.appendChild(av);
+    item.appendChild(col);
+    item.addEventListener('click', () => openChat(c.jid, c.name, false));
+    list.appendChild(item);
+  }
+}
+
+/* status viewer: one poster's statuses, tap left/right, auto-advance */
+const sv = { sender: null, items: [], index: 0 };
+const SV_IMAGE_MS = 6000;
+const SV_VIDEO_MS = 30000;
+const SV_MEDIA_RE = /Photo|Video|GIF|🖼|📷|🎥|🎞/i;
+let svTimer = null;
+
+function splitStatusText(text) {
+  const t = String(text || '');
+  if (!SV_MEDIA_RE.test(t)) return { isMedia: false, isVideo: false, caption: '' };
+  const isVideo = /Video|🎥|🎞/i.test(t);
+  const caption = t.replace(/^\s*(🖼️?|📷|🎥|🎞️?)?\s*(Photo|Video|GIF)\s*:?\s*/i, '').trim();
+  return { isMedia: true, isVideo, caption };
+}
+
+function openStatusViewer(sender, name) {
+  sv.sender = sender;
+  sv.items = [];
+  sv.index = 0;
+  $('sv-name').textContent = name || '';
+  const av = $('sv-avatar');
+  av.src = '/api/avatar?jid=' + encodeURIComponent(sender);
+  av.onerror = () => { av.removeAttribute('src'); };
+  $('status-viewer').hidden = false;
+  $('sv-content').textContent = '';
+  $('sv-caption').textContent = '';
+  $('sv-progress').textContent = '';
+  api('/api/updates/status?sender=' + encodeURIComponent(sender))
+    .then((r) => {
+      if (sv.sender !== sender) return;
+      sv.items = r.items || [];
+      sv.index = 0;
+      showStatusItem();
+      // Mark them viewed (WhatsApp shows the poster that they were seen).
+      postJson('/api/updates/viewed', { sender }).catch(() => {});
+    })
+    .catch(() => { $('sv-content').appendChild(el('div', 'sv-text', 'could not load this status')); });
+}
+
+function closeStatusViewer() {
+  clearTimeout(svTimer);
+  svTimer = null;
+  $('status-viewer').hidden = true;
+  $('sv-content').textContent = '';
+  sv.items = [];
+  sv.sender = null;
+  loadUpdates();
+}
+
+function nextStatus() { sv.index++; showStatusItem(); }
+
+function showStatusItem() {
+  clearTimeout(svTimer);
+  if (sv.index >= sv.items.length) { closeStatusViewer(); return; }
+  if (sv.index < 0) sv.index = 0;
+  const it = sv.items[sv.index];
+  const parts = splitStatusText(it.text);
+  const stepMs = parts.isVideo ? SV_VIDEO_MS : SV_IMAGE_MS;
+
+  const progress = $('sv-progress');
+  progress.textContent = '';
+  sv.items.forEach((_, i) => {
+    const seg = el('div', 'sv-seg' + (i < sv.index ? ' done' : i === sv.index ? ' active' : ''));
+    seg.appendChild(document.createElement('i'));
+    if (i === sv.index) seg.style.setProperty('--sv-ms', stepMs + 'ms');
+    progress.appendChild(seg);
+  });
+
+  $('sv-time').textContent = it.ts ? fmtTime(it.ts) : '';
+  const content = $('sv-content');
+  content.textContent = '';
+  const caption = $('sv-caption');
+  caption.textContent = '';
+
+  if (parts.isMedia) {
+    const media = document.createElement(parts.isVideo ? 'video' : 'img');
+    media.src = '/api/media?jid=status%40broadcast&id=' + encodeURIComponent(it.id);
+    if (parts.isVideo) {
+      media.controls = true;
+      media.autoplay = true;
+      media.playsInline = true;
+      media.onended = nextStatus;
+    }
+    media.onerror = () => {
+      content.textContent = '';
+      content.appendChild(el('div', 'sv-text', it.text || ''));
+    };
+    content.appendChild(media);
+    caption.textContent = parts.caption;
+  } else {
+    content.appendChild(el('div', 'sv-text', it.text || '(empty status)'));
+  }
+  svTimer = setTimeout(nextStatus, stepMs);
+}
+
+$('sv-close').addEventListener('click', closeStatusViewer);
+document.querySelector('#status-viewer .sv-prev').addEventListener('click', () => { sv.index--; showStatusItem(); });
+document.querySelector('#status-viewer .sv-next').addEventListener('click', () => { sv.index++; showStatusItem(); });
+document.addEventListener('keydown', (e) => {
+  if ($('status-viewer').hidden) return;
+  if (e.key === 'Escape') closeStatusViewer();
+  if (e.key === 'ArrowRight') { sv.index++; showStatusItem(); }
+  if (e.key === 'ArrowLeft') { sv.index--; showStatusItem(); }
+});
+
+/* ── reply / edit / delete / forward ───────────────────────────────────── */
+
+function setReply(m) {
+  state.replyTo = m || null;
+  const bar = $('reply-bar');
+  if (!m) { if (!state.editing) bar.hidden = true; return; }
+  if (state.editing) setEditing(null);
+  $('reply-name').textContent = m.fromMe ? 'You' : (m.pushName || (m.sender || '').split('@')[0] || 'message');
+  $('reply-text').textContent = previewText(m);
+  bar.hidden = false;
+  $('send-text').focus();
+}
+
+function setEditing(m) {
+  state.editing = m || null;
+  const bar = $('reply-bar');
+  if (!m) {
+    if (!state.replyTo) bar.hidden = true;
+    if (!state.replyTo) $('send-text').value = '';
+    return;
+  }
+  state.replyTo = null;
+  $('reply-name').textContent = '✎ Editing message';
+  $('reply-text').textContent = m.text;
+  bar.hidden = false;
+  $('send-text').value = m.text;
+  $('send-text').focus();
+}
+
+async function deleteMessage(m) {
+  if (!confirm('Delete this message for everyone?')) return;
+  try {
+    await postJson('/api/delete', { jid: state.currentJid, msgId: m.id });
+    loadMessages();
+  } catch (err) { alert(err.message || 'delete failed'); }
+}
+
+function openForward(m) {
+  state.forwardId = m.id;
+  const list = $('fwd-list');
+  list.textContent = '';
+  for (const c of state.chats) {
+    if (c.jid === state.currentJid) continue;
+    const item = el('div', 'pick-item', (c.isGroup ? '👥 ' : '') + c.name);
+    item.addEventListener('click', async () => {
+      try {
+        await postJson('/api/forward', { jid: state.currentJid, toJid: c.jid, msgIds: [state.forwardId] });
+        $('fwd-modal').hidden = true;
+        alert('forwarded to ' + c.name);
+      } catch (err) { alert(err.message || 'forward failed'); }
+    });
+    list.appendChild(item);
+  }
+  $('fwd-modal').hidden = false;
+}
+$('fwd-cancel').addEventListener('click', () => { $('fwd-modal').hidden = true; });
+$('reply-cancel').addEventListener('click', () => { setReply(null); setEditing(null); });
+
+/* ── new chat, navigation, logout ──────────────────────────────────────── */
+
+const NC_ICONS = {
+  group: '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14c2.6 0 5 1.6 5 4.4"/></svg>',
+  contact: '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.4"/><path d="M4 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M19 8v6M16 11h6"/></svg>',
+  community: '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="7" cy="9" r="2.4"/><circle cx="17" cy="9" r="2.4"/><circle cx="12" cy="7" r="2.6"/><path d="M2.5 18c0-2.4 2-4 4.5-4M21.5 18c0-2.4-2-4-4.5-4M7.5 19c0-2.6 2-4.4 4.5-4.4s4.5 1.8 4.5 4.4"/></svg>',
+  broadcast: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 10v4l11 4V6L3 10z"/><path d="M14 9a4 4 0 0 1 0 6"/><path d="M7 14l1.5 5h2"/></svg>'
+};
+const NC_ACTIONS = [['New group', 'group'], ['New contact', 'contact'], ['New community', 'community'], ['New broadcast', 'broadcast']];
+
+function ncPersonRow(c) {
+  const row = el('div', 'nc-row');
+  const av = el('span', 'nc-av');
+  setAvatar(av, c.jid, c.name || c.number);
+  const text = el('div', 'nc-text');
+  text.appendChild(el('div', 'nc-name', c.name || c.number || c.jid.split('@')[0]));
+  row.appendChild(av);
+  row.appendChild(text);
+  row.addEventListener('click', () => { closeNewChatDialog(); openChat(c.jid, c.name || c.number, false); });
+  return row;
+}
+
+function ncActionRow(label, key) {
+  const row = el('div', 'nc-row');
+  const ico = el('span', 'nc-ico');
+  ico.innerHTML = NC_ICONS[key];
+  row.appendChild(ico);
+  const text = el('div', 'nc-text');
+  text.appendChild(el('div', 'nc-name', label));
+  row.appendChild(text);
+  // Features for these rows come in later steps; for now they only say so.
+  row.addEventListener('click', () => openNcScreen(key));
+  return row;
+}
+
+// Each action row has its own screen. Layout only for now; the features come in later steps.
+const NC_SCREENS = {
+  group: { title: 'New group', text: 'Create a group and add people to it.' },
+  contact: { title: 'New contact', text: 'Save a new phone number as a contact.' },
+  community: { title: 'New community', text: 'Create a community with several groups.' },
+  broadcast: { title: 'New broadcast', text: 'Send one message to many people at once.' }
+};
+function openNcScreen(key) {
+  const info = NC_SCREENS[key];
+  if (!info) return;
+  $('nc-screen-title').textContent = info.title;
+  const body = $('nc-screen-body');
+  body.textContent = '';
+  body.appendChild(el('div', 'nc-note', info.text));
+  body.appendChild(el('div', 'nc-note', 'Coming soon'));
+  $('nc-screen').hidden = false;
+}
+function closeNcScreen() { $('nc-screen').hidden = true; }
+$('nc-screen-back').addEventListener('click', closeNcScreen);
+$('nc-screen').addEventListener('click', (e) => { if (e.target.id === 'nc-screen') closeNcScreen(); });
+
+function ncNote(text) {
+  const body = $('nc-body');
+  let note = body.querySelector('.nc-note');
+  if (!note) { note = el('div', 'nc-note'); body.insertBefore(note, body.firstChild); }
+  note.textContent = text;
+}
+
+// First letter of a name, for the A to Z headings. Names that do not start with a letter go under #.
+function letterOf(c) {
+  const ch = nameOf(c).trim().charAt(0).toUpperCase();
+  return /[A-Z]/.test(ch) ? ch : '#';
+}
+function nameOf(c) { return c.name || c.number || (c.jid || '').split('@')[0] || ''; }
+
+// Right-hand A to Z bar. Tapping a letter scrolls to its heading; letters with no contacts are greyed out.
+function renderNcIndex(present) {
+  const bar = $('nc-index');
+  bar.textContent = '';
+  const all = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','#'];
+  for (const letter of all) {
+    const b = el('button', null, letter);
+    b.type = 'button';
+    b.disabled = !present.has(letter);
+    b.addEventListener('click', () => {
+      const target = document.getElementById('nc-letter-' + letter);
+      if (target) target.scrollIntoView({ block: 'start' });
+    });
+    bar.appendChild(b);
+  }
+  bar.hidden = present.size === 0;
+}
+
+function renderNewChat() {
+  const raw = $('new-chat-input').value.trim();
+  const q = raw.toLowerCase();
+  const digits = raw.replace(/\D/g, '');
+  const body = $('nc-body');
+  body.textContent = '';
+
+  // Individual chats only: no groups, channels, broadcasts, or archived chats.
+  const people = state.chats.filter((c) => c.jid && !c.isGroup && !c.archived &&
+    /@(s\.whatsapp\.net|lid)$/.test(c.jid));
+  const isSelf = (c) => /\(You\)$/.test(c.name || '');
+  const matches = (c) => {
+    if (!q) return true;
+    if ((c.name || '').toLowerCase().includes(q)) return true;
+    return digits.length >= 3 && String(c.number || c.jid).replace(/\D/g, '').includes(digits);
+  };
+
+  if (!q) {
+    const card = el('div', 'nc-card');
+    for (const [label, key] of NC_ACTIONS) card.appendChild(ncActionRow(label, key));
+    body.appendChild(card);
+
+    const frequent = frequentList().slice(0, 5);
+    if (frequent.length) {
+      body.appendChild(el('div', 'nc-label', 'Frequently contacted'));
+      const card2 = el('div', 'nc-card');
+      for (const c of frequent) card2.appendChild(ncPersonRow(c));
+      body.appendChild(card2);
+    }
+  }
+
+  // Saved contacts you have never messaged also appear, so they can be opened.
+  const savedRows = ((peopleCache && peopleCache.saved) || [])
+    .filter((sv2) => !people.some((c) => c.jid === sv2.jid))
+    .map((sv2) => ({ jid: sv2.jid, name: sv2.name, number: sv2.number, isGroup: false, archived: false, lastTs: 0, saved: true }));
+  const everyone = people.concat(savedRows).filter(matches);
+  const selfChats = everyone.filter(isSelf);
+  const others = everyone.filter((c) => !isSelf(c))
+    .sort((a, b) => letterOf(a).localeCompare(letterOf(b)) || nameOf(a).localeCompare(nameOf(b)));
+  const letters = new Set();
+  if (everyone.length) {
+    body.appendChild(el('div', 'nc-label', 'Contacts on WhatsApp'));
+    const selfCard = el('div', 'nc-card');
+    for (const c of selfChats) {
+      const r = ncPersonRow(c);
+      r.querySelector('.nc-text').appendChild(el('div', 'nc-sub', 'Message yourself'));
+      selfCard.appendChild(r);
+    }
+    if (selfChats.length) body.appendChild(selfCard);
+
+    // One heading per letter, with the contacts for that letter under it.
+    let current = null, card = null;
+    for (const c of others) {
+      const letter = letterOf(c);
+      if (letter !== current) {
+        current = letter;
+        letters.add(letter);
+        const heading = el('div', 'nc-label', letter);
+        heading.id = 'nc-letter-' + letter;
+        body.appendChild(heading);
+        card = el('div', 'nc-card');
+        body.appendChild(card);
+      }
+      const row = ncPersonRow(c);
+      if (c.saved) row.querySelector('.nc-text').appendChild(el('div', 'nc-sub', 'Saved contact, no chats yet'));
+      card.appendChild(row);
+    }
+  }
+  renderNcIndex(letters);
+
+  // A number typed in the search that is not a saved chat can still be opened.
+  if (digits.length >= 5 && !everyone.some((c) => String(c.number || c.jid).replace(/\D/g, '') === digits)) {
+    body.insertBefore(numberRow(digits), body.firstChild);
+  }
+  if (!body.children.length) body.appendChild(el('div', 'nc-note', 'No matches'));
+}
+
+function numberRow(digits) {
+  const row = el('div', 'nc-row');
+  const ico = el('span', 'nc-ico');
+  ico.innerHTML = NC_ICONS.contact;
+  row.appendChild(ico);
+  const text = el('div', 'nc-text');
+  text.appendChild(el('div', 'nc-name', '+' + digits));
+  text.appendChild(el('div', 'nc-sub', 'Message this number'));
+  row.appendChild(text);
+  row.addEventListener('click', openNewChat);
+  return row;
+}
+
+function openNewChatDialog() {
+  $('new-chat-dialog').hidden = false;
+  $('new-chat-input').value = '';
+  renderNewChat();
+  loadPeople().then(() => { if (!$('new-chat-dialog').hidden) renderNewChat(); });
+  setTimeout(() => $('new-chat-input').focus(), 0);
+}
+function closeNewChatDialog() {
+  $('new-chat-dialog').hidden = true;
+  $('new-chat-input').value = '';
+}
+function openNewChat() {
+  const raw = $('new-chat-input').value.replace(/\D/g, '');
+  if (raw.length < 5) { $('new-chat-input').focus(); return; }
+  closeNewChatDialog();
+  openChat(raw + '@s.whatsapp.net', raw, false);
+}
+$('new-chat-open').addEventListener('click', openNewChatDialog);
+// Status picker: My status, Frequently contacted, Recent chats. Tap to select, then Send.
+const shareSel = new Set();
+let capCaption = '';
+let peopleCache = null;   // { frequent, saved } from /api/people
+
+async function loadPeople() {
+  try {
+    const r = await api('/api/people');
+    peopleCache = { frequent: r.frequent || [], saved: r.saved || [] };
+  } catch (_) {
+    peopleCache = peopleCache || { frequent: [], saved: [] };
+  }
+}
+// Most messaged people first (from the server). Falls back to recent chats until the server answers.
+function frequentList() {
+  if (peopleCache && peopleCache.frequent.length) {
+    return peopleCache.frequent.map((f) => ({ jid: f.jid, name: f.name, number: f.jid.split('@')[0], isGroup: false, archived: false }));
+  }
+  return state.chats
+    .filter((c) => c.jid && !c.isGroup && !c.archived && /@(s\.whatsapp\.net|lid)$/.test(c.jid) && !/\(You\)$/.test(c.name || '') && c.lastTs)
+    .sort((x, y) => (y.lastTs || 0) - (x.lastTs || 0));
+}
+
+function camRow(key, name, sub, jid, extra) {
+  const row = el('div', 'nc-row');
+  if (jid) {
+    const av = el('span', 'nc-av');
+    setAvatar(av, jid, name);
+    row.appendChild(av);
+  }
+  const text = el('div', 'nc-text');
+  text.appendChild(el('div', 'nc-name', name));
+  if (sub) text.appendChild(el('div', 'nc-sub', sub));
+  row.appendChild(text);
+  if (extra) row.appendChild(extra);
+  const radio = el('span', 'nc-radio');
+  if (shareSel.has(key)) radio.classList.add('on');
+  row.appendChild(radio);
+  row.addEventListener('click', () => toggleShare(key, radio));
+  return row;
+}
+function toggleShare(key, radio) {
+  if (shareSel.has(key)) { shareSel.delete(key); radio.classList.remove('on'); }
+  else { shareSel.add(key); radio.classList.add('on'); }
+  updateShareBar();
+}
+function updateShareBar() {
+  const n = shareSel.size;
+  $('share-bar').hidden = n === 0;
+  $('share-count').textContent = n === 1 ? '1 selected' : n + ' selected';
+}
+
+function renderCam() {
+  const q = $('cam-search').value.trim().toLowerCase();
+  const body = $('cam-body');
+  body.textContent = '';
+  const people = state.chats.filter((c) => c.jid && !c.archived && /@(s\.whatsapp\.net|lid|g\.us)$/.test(c.jid));
+  const isSelf = (c) => /\(You\)$/.test(c.name || '');
+  const nameOf2 = (c) => c.name || c.number || c.jid.split('@')[0];
+  const matches = (c) => !q || nameOf2(c).toLowerCase().includes(q);
+
+  if (!q) {
+    const mine = el('div', 'nc-card');
+    const view = el('button', 'nc-mini', 'View');
+    view.type = 'button';
+    view.addEventListener('click', (e) => { e.stopPropagation(); openOwnStatusViewer(); });
+    mine.appendChild(camRow('status', 'My status', 'Post to your status', null, view));
+    body.appendChild(mine);
+
+    const freq = frequentList().slice(0, 5);
+    if (freq.length) {
+      body.appendChild(el('div', 'nc-label', 'Frequently contacted'));
+      const card = el('div', 'nc-card');
+      for (const c of freq) card.appendChild(camRow(c.jid, nameOf2(c), null, c.jid));
+      body.appendChild(card);
+    }
+  }
+
+  const recent = people.filter((c) => c.lastTs && matches(c))
+    .sort((x, y) => (y.lastTs || 0) - (x.lastTs || 0)).slice(0, q ? 50 : 20);
+  if (recent.length) {
+    body.appendChild(el('div', 'nc-label', 'Recent chats'));
+    const card = el('div', 'nc-card');
+    for (const c of recent) card.appendChild(camRow(c.jid, nameOf2(c), isSelf(c) ? 'Message yourself' : null, c.jid));
+    body.appendChild(card);
+  }
+  if (!body.querySelector('.nc-row')) body.appendChild(el('div', 'nc-note', 'No matches'));
+}
+
+function openCamDialog() {
+  $('cam-dialog').hidden = false;
+  $('cam-search').value = '';
+  shareSel.clear();
+  updateShareBar();
+  renderCam();
+  loadPeople().then(() => { if (!$('cam-dialog').hidden) renderCam(); });
+}
+function closeCamDialog() {
+  $('cam-dialog').hidden = true;
+  shareSel.clear();
+  updateShareBar();
+}
+
+// My status: the posts I made in the last day, in the same viewer as other people's statuses.
+async function openOwnStatusViewer() {
+  sv.sender = 'me';
+  sv.items = [];
+  sv.index = 0;
+  $('sv-name').textContent = 'My status';
+  $('sv-avatar').removeAttribute('src');
+  $('status-viewer').hidden = false;
+  $('sv-content').textContent = '';
+  $('sv-caption').textContent = '';
+  $('sv-progress').textContent = '';
+  try {
+    const r = await api('/api/status/mine');
+    if (sv.sender !== 'me') return;
+    sv.items = r.items || [];
+    sv.index = 0;
+    if (!sv.items.length) { $('sv-content').appendChild(el('div', 'sv-text', 'You have not posted a status yet')); return; }
+    showStatusItem();
+  } catch (_) {
+    $('sv-content').appendChild(el('div', 'sv-text', 'could not load your status'));
+  }
+}
+
+function readAsBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
+    fr.onerror = () => reject(fr.error);
+    fr.readAsDataURL(blob);
+  });
+}
+// Send the captured photo or video to every selected person, and to My status if it is selected.
+async function sendShare() {
+  if (!shareSel.size) return;
+  if (!capMedia) { toast('Take a photo or video first'); return; }
+  const btn = $('share-send');
+  btn.disabled = true;
+  try {
+    const data = await readAsBase64(capMedia);
+    const media = {
+      mime: capMedia.type || (capKind === 'video' ? 'video/webm' : 'image/jpeg'),
+      data,
+      fileName: capKind === 'video' ? 'video' : 'photo',
+    };
+    let ok = 0, failed = 0;
+    for (const key of [...shareSel]) {
+      try {
+        if (key === 'status') await postJson('/api/status', { media, text: capCaption });
+        else await postJson('/api/send', { jid: key, text: capCaption, media });
+        ok++;
+      } catch (_) { failed++; }
+    }
+    toast(failed ? `Sent to ${ok}, failed for ${failed}` : `Sent to ${ok}`);
+    if (ok) { closeCamDialog(); closePreview(); capCaption = ''; }
+  } catch (_) {
+    toast('Could not read the file');
+  } finally {
+    btn.disabled = false;
+  }
+}
+$('share-send').addEventListener('click', sendShare);
+// ── Camera flow: capture → preview (caption, send) → Status share sheet ──
+let capStream = null, capFacing = 'environment', capMode = 'photo', capRecorder = null, capChunks = [];
+let capMedia = null, capMediaUrl = null, capKind = null;
+const canLiveCamera = !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+// Zoom and flash state for the live camera.
+let capTrack = null, capZoom = 1, capHwZoom = null, capTorchOk = false, capFlashOn = false, capDigital = 1;
+const CAP_ZOOM_LEVELS = [1, 2, 3];
+// Use the lens's own zoom when the browser reports it. Otherwise crop digitally (preview, photo and video).
+function capApplyZoom() {
+  let digital = capZoom;
+  if (capTrack && capHwZoom) {
+    const z = Math.min(capHwZoom.max, Math.max(capHwZoom.min, capZoom));
+    digital = capZoom / z;
+    capTrack.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {});
+  }
+  capDigital = digital;
+  $('cap-video').style.transform = digital > 1 ? `scale(${digital})` : '';
+  $('cap-zoom').textContent = capZoom + '×';
+}
+function capApplyFlash() {
+  const b = $('cap-flash');
+  b.classList.toggle('flash-on', capFlashOn);
+  b.classList.toggle('off', !capTorchOk);
+  if (capTrack && capTorchOk) capTrack.applyConstraints({ advanced: [{ torch: capFlashOn }] }).catch(() => {});
+}
+async function startCapStream() {
+  stopCapStream();
+  try {
+    capStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: capFacing }, audio: capMode === 'video'
+    });
+    capTrack = capStream.getVideoTracks()[0] || null;
+    const caps = capTrack && capTrack.getCapabilities ? capTrack.getCapabilities() : {};
+    capHwZoom = caps.zoom ? { min: caps.zoom.min || 1, max: caps.zoom.max || 1 } : null;
+    capTorchOk = !!caps.torch;
+    $('cap-video').srcObject = capStream;
+    await $('cap-video').play().catch(() => {});
+    capApplyZoom();
+    capApplyFlash();
+  } catch (_) {
+    capStream = null;
+    toast('Camera access was not allowed. Opening your phone camera.');
+    closeCapture();
+    $('cap-file-camera').click();
+  }
+}
+function stopCapStream() {
+  if (capStream) capStream.getTracks().forEach((t) => t.stop());
+  capStream = null; capTrack = null;
+  $('cap-video').srcObject = null;
+}
+function openCapture() {
+  if (!canLiveCamera) { $('cap-file-camera').click(); return; }
+  $('cap-capture').hidden = false;
+  setCapMode(capMode);
+  startCapStream();
+}
+function closeCapture() {
+  if (capRecorder && capRecorder.state !== 'inactive') capRecorder.stop();
+  stopCapStream();
+  $('cap-capture').hidden = true;
+}
+function setCapMode(mode) {
+  capMode = mode;
+  $('mode-photo').classList.toggle('on', mode === 'photo');
+  $('mode-video').classList.toggle('on', mode === 'video');
+  $('cap-shutter').classList.remove('rec');
+}
+function showPreview(blob, kind) {
+  stopCapStream();
+  $('cap-capture').hidden = true;
+  if (capMediaUrl) URL.revokeObjectURL(capMediaUrl);
+  capMedia = blob;
+  capKind = kind;
+  capMediaUrl = URL.createObjectURL(blob);
+  const holder = $('cap-media');
+  holder.textContent = '';
+  const node = el(kind === 'video' ? 'video' : 'img');
+  node.src = capMediaUrl;
+  if (kind === 'video') { node.controls = true; node.playsInline = true; }
+  holder.appendChild(node);
+  $('cap-caption').value = '';
+  $('cap-preview').hidden = false;
+}
+function closePreview() {
+  $('cap-preview').hidden = true;
+  if (capMediaUrl) URL.revokeObjectURL(capMediaUrl);
+  capMediaUrl = null;
+  capMedia = null;
+}
+function takePhoto() {
+  const v = $('cap-video');
+  if (!v.videoWidth) { toast('Camera is still starting'); return; }
+  const c = document.createElement('canvas');
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  const sw = c.width / capDigital, sh = c.height / capDigital;
+  c.getContext('2d').drawImage(v, (c.width - sw) / 2, (c.height - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+  c.toBlob((blob) => { if (blob) showPreview(blob, 'image'); }, 'image/jpeg', 0.92);
+}
+function toggleRecord() {
+  if (capRecorder && capRecorder.state === 'recording') { capRecorder.stop(); return; }
+  if (!capStream || typeof MediaRecorder === 'undefined') { toast('Video recording is not supported in this browser'); return; }
+  capChunks = [];
+  // With digital zoom the recording must come from a cropped canvas, so the saved video matches the preview.
+  let recStream = capStream, raf = 0;
+  if (capDigital > 1 && typeof HTMLCanvasElement.prototype.captureStream === 'function') {
+    const v = $('cap-video');
+    const cv = document.createElement('canvas');
+    cv.width = v.videoWidth || 720; cv.height = v.videoHeight || 1280;
+    const ctx = cv.getContext('2d');
+    const draw = () => {
+      const sw = cv.width / capDigital, sh = cv.height / capDigital;
+      ctx.drawImage(v, (cv.width - sw) / 2, (cv.height - sh) / 2, sw, sh, 0, 0, cv.width, cv.height);
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    recStream = new MediaStream([...cv.captureStream(30).getVideoTracks(), ...capStream.getAudioTracks()]);
+  }
+  try { capRecorder = new MediaRecorder(recStream); }
+  catch (_) { cancelAnimationFrame(raf); toast('Video recording is not supported in this browser'); return; }
+  capRecorder.ondataavailable = (e) => { if (e.data && e.data.size) capChunks.push(e.data); };
+  capRecorder.onstop = () => {
+    cancelAnimationFrame(raf);
+    $('cap-shutter').classList.remove('rec');
+    const type = capRecorder.mimeType || 'video/webm';
+    const blob = new Blob(capChunks, { type });
+    if (blob.size) showPreview(blob, 'video');
+  };
+  capRecorder.start();
+  $('cap-shutter').classList.add('rec');
+}
+
+$('status-camera').addEventListener('click', openCapture);
+$('cap-close').addEventListener('click', closeCapture);
+$('cap-shutter').addEventListener('click', () => { if (capMode === 'photo') takePhoto(); else toggleRecord(); });
+$('mode-photo').addEventListener('click', () => { if (!capRecorder || capRecorder.state !== 'recording') { setCapMode('photo'); } });
+$('mode-video').addEventListener('click', () => { if (!capRecorder || capRecorder.state !== 'recording') { setCapMode('video'); startCapStream(); } });
+$('cap-flip').addEventListener('click', () => {
+  capFacing = capFacing === 'environment' ? 'user' : 'environment';
+  capZoom = 1; capFlashOn = false;
+  startCapStream();
+});
+$('cap-flash').addEventListener('click', () => {
+  if (!capTorchOk) { toast('Flash is not available on this camera'); return; }
+  capFlashOn = !capFlashOn;
+  capApplyFlash();
+});
+$('cap-zoom').addEventListener('click', () => {
+  const i = CAP_ZOOM_LEVELS.indexOf(capZoom);
+  capZoom = CAP_ZOOM_LEVELS[(i + 1) % CAP_ZOOM_LEVELS.length];
+  capApplyZoom();
+});
+$('cap-gallery').addEventListener('click', () => { $('cap-file-gallery').click(); });
+$('cap-file-camera').addEventListener('change', (e) => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (f) showPreview(f, f.type.startsWith('video') ? 'video' : 'image');
+});
+$('cap-file-gallery').addEventListener('change', (e) => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (f) { closeCapture(); showPreview(f, f.type.startsWith('video') ? 'video' : 'image'); }
+});
+$('cap-retake').addEventListener('click', () => { closePreview(); if (canLiveCamera) openCapture(); });
+document.querySelectorAll('#cap-preview [data-edit-tool]').forEach((b) => {
+  b.addEventListener('click', () => openEditor(b.dataset.editTool));
+});
+
+// ── Photo editor: Crop, Draw, Text, Emoji ──
+// Everything is stored in relative coordinates (0–1), so the same drawing works on the
+// screen and at full resolution when saved. Crop bakes the edits into a new base image.
+const ed = { base: null, strokes: [], stickers: [], undo: [], tool: 'move', color: '#00ffe0', drawing: null, drag: null };
+const ED_COLORS = ['#ffffff', '#000000', '#00ffe0', '#ff3b30', '#ffcc00', '#34c759', '#0a84ff'];
+const ED_EMOJI = ['😀', '😂', '😍', '🥳', '😎', '🔥', '❤️', '👍', '🙏', '🎉', '💯', '😢', '😮', '🙌', '✨', '🌙'];
+const ED_MAX = 2048;
+const edCanvas = $('edit-canvas');
+
+function edSnapshot() {
+  ed.undo.push({ base: ed.base, strokes: ed.strokes.slice(), stickers: ed.stickers.map((x) => ({ ...x })) });
+  if (ed.undo.length > 30) ed.undo.shift();
+}
+function edUndo() {
+  const snap = ed.undo.pop();
+  if (!snap) { toast('Nothing to undo'); return; }
+  ed.base = snap.base; ed.strokes = snap.strokes; ed.stickers = snap.stickers;
+  edRedraw();
+}
+// Draws the base image plus strokes and stickers into ctx at size W×H.
+function edRender(ctx, W, H) {
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(ed.base, 0, 0, W, H);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const st of ed.strokes) {
+    if (!st.pts.length) continue;
+    ctx.strokeStyle = st.color; ctx.lineWidth = st.w * W;
+    ctx.beginPath();
+    st.pts.forEach((p, i) => { const x = p[0] * W, y = p[1] * H; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+    ctx.stroke();
+  }
+  for (const st of ed.stickers) {
+    const size = st.size * W;
+    const x = st.x * W, y = st.y * H;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (st.type === 'emoji') {
+      ctx.font = `${size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+      ctx.fillStyle = '#000';
+      ctx.fillText(st.text, x, y);
+    } else {
+      ctx.font = `bold ${size}px system-ui,-apple-system,"Segoe UI",sans-serif`;
+      ctx.lineJoin = 'round'; ctx.lineWidth = size * 0.14; ctx.strokeStyle = '#000';
+      ctx.strokeText(st.text, x, y);
+      ctx.fillStyle = st.color; ctx.fillText(st.text, x, y);
+    }
+  }
+}
+function edFit() {
+  if (!ed.base) return;
+  const stage = $('edit-stage');
+  const maxW = stage.clientWidth - 16, maxH = stage.clientHeight - 16;
+  const ratio = ed.base.width / ed.base.height;
+  let w = maxW, h = w / ratio;
+  if (h > maxH) { h = maxH; w = h * ratio; }
+  const pxW = Math.min(ed.base.width, 1200);
+  edCanvas.width = pxW; edCanvas.height = Math.round(pxW / ratio);
+  edCanvas.style.width = Math.floor(w) + 'px'; edCanvas.style.height = Math.floor(h) + 'px';
+}
+function edRedraw() {
+  if (!ed.base) return;
+  edRender(edCanvas.getContext('2d'), edCanvas.width, edCanvas.height);
+}
+function edPoint(e) {
+  const r = edCanvas.getBoundingClientRect();
+  return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
+}
+function edHit(p) {
+  for (let i = ed.stickers.length - 1; i >= 0; i--) {
+    const st = ed.stickers[i];
+    const half = st.size * 0.6;
+    if (Math.abs(p[0] - st.x) < half && Math.abs(p[1] - st.y) < half) return st;
+  }
+  return null;
+}
+edCanvas.addEventListener('pointerdown', (e) => {
+  if (!ed.base) return;
+  const p = edPoint(e);
+  edCanvas.setPointerCapture(e.pointerId);
+  if (ed.tool === 'draw') {
+    edSnapshot();
+    ed.drawing = { color: ed.color, w: 0.009, pts: [p] };
+    ed.strokes.push(ed.drawing);
+  } else {
+    const hit = edHit(p);
+    if (hit) { edSnapshot(); ed.drag = { st: hit, dx: p[0] - hit.x, dy: p[1] - hit.y }; }
+  }
+  edRedraw();
+});
+edCanvas.addEventListener('pointermove', (e) => {
+  if (ed.drawing) { ed.drawing.pts.push(edPoint(e)); edRedraw(); }
+  else if (ed.drag) {
+    const p = edPoint(e);
+    ed.drag.st.x = p[0] - ed.drag.dx; ed.drag.st.y = p[1] - ed.drag.dy;
+    edRedraw();
+  }
+});
+const edEnd = () => { ed.drawing = null; ed.drag = null; };
+edCanvas.addEventListener('pointerup', edEnd);
+edCanvas.addEventListener('pointercancel', edEnd);
+
+function edAddSticker(st) {
+  edSnapshot();
+  ed.stickers.push(Object.assign({ x: 0.5, y: 0.45 }, st));
+  edRedraw();
+}
+// Crop to a centred ratio, baking the current edits into the base image.
+function edCrop(ratio) {
+  if (!ed.base) return;
+  const bw = ed.base.width, bh = ed.base.height;
+  let cw = bw, ch = bh;
+  if (bw / bh > ratio) cw = Math.round(bh * ratio); else ch = Math.round(bw / ratio);
+  const full = document.createElement('canvas');
+  full.width = bw; full.height = bh;
+  edRender(full.getContext('2d'), bw, bh);
+  const out = document.createElement('canvas');
+  out.width = cw; out.height = ch;
+  out.getContext('2d').drawImage(full, Math.round((bw - cw) / 2), Math.round((bh - ch) / 2), cw, ch, 0, 0, cw, ch);
+  edSnapshot();
+  ed.base = out; ed.strokes = []; ed.stickers = [];
+  edFit(); edRedraw();
+}
+
+function setEditTool(tool) {
+  ed.tool = tool;
+  document.querySelectorAll('#cap-edit [data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === tool));
+  const panel = $('edit-panel');
+  panel.textContent = '';
+  const swatches = () => {
+    const row = el('div', '');
+    row.style.display = 'flex'; row.style.gap = '8px';
+    for (const c of ED_COLORS) {
+      const b = el('button', 'sw');
+      b.type = 'button';
+      b.style.background = c;
+      if (c === ed.color) b.classList.add('on');
+      b.addEventListener('click', () => { ed.color = c; setEditTool(ed.tool); });
+      row.appendChild(b);
+    }
+    return row;
+  };
+  if (tool === 'crop') {
+    panel.appendChild(el('span', 'hint', 'Crop to:'));
+    for (const [label, r] of [['1:1', 1], ['4:5', 0.8], ['16:9', 16 / 9]]) {
+      const b = el('button', 'chip', label);
+      b.type = 'button';
+      b.addEventListener('click', () => edCrop(r));
+      panel.appendChild(b);
+    }
+  } else if (tool === 'draw') {
+    panel.appendChild(swatches());
+    panel.appendChild(el('span', 'hint', 'Drag on the photo'));
+  } else if (tool === 'text') {
+    const input = el('input');
+    input.id = 'ed-text'; input.placeholder = 'Type text'; input.maxLength = 60; input.autocomplete = 'off';
+    const add = el('button', 'chip', 'Add');
+    add.type = 'button';
+    add.addEventListener('click', () => {
+      const t = input.value.trim();
+      if (!t) { toast('Type some text first'); return; }
+      edAddSticker({ type: 'text', text: t, size: 0.075, color: ed.color });
+      input.value = '';
+    });
+    panel.appendChild(input);
+    panel.appendChild(add);
+    panel.appendChild(swatches());
+  } else if (tool === 'emoji') {
+    for (const em of ED_EMOJI) {
+      const b = el('button', 'emo', em);
+      b.type = 'button';
+      b.addEventListener('click', () => edAddSticker({ type: 'emoji', text: em, size: 0.16 }));
+      panel.appendChild(b);
+    }
+  } else {
+    panel.appendChild(el('span', 'hint', 'Drag a sticker to move it'));
+  }
+}
+
+function openEditor(tool) {
+  if (capKind !== 'image' || !capMediaUrl) { toast('Editing works on photos'); return; }
+  const img = new Image();
+  img.onload = () => {
+    // Cap very large photos so editing stays smooth and the saved file stays a sensible size.
+    const k = Math.min(1, ED_MAX / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    ed.base = c; ed.strokes = []; ed.stickers = []; ed.undo = []; ed.drawing = null; ed.drag = null;
+    $('cap-preview').hidden = true;
+    $('cap-edit').hidden = false;
+    requestAnimationFrame(() => { edFit(); edRedraw(); });
+    setEditTool(tool === 'crop' || tool === 'draw' || tool === 'text' || tool === 'emoji' ? tool : 'move');
+  };
+  img.onerror = () => toast('Could not open this photo');
+  img.src = capMediaUrl;
+}
+function closeEditor() {
+  $('cap-edit').hidden = true;
+  ed.base = null; ed.strokes = []; ed.stickers = []; ed.undo = [];
+  $('cap-preview').hidden = false;
+}
+document.querySelectorAll('#cap-edit [data-tool]').forEach((b) => b.addEventListener('click', () => setEditTool(b.dataset.tool)));
+$('edit-cancel').addEventListener('click', closeEditor);
+$('edit-undo').addEventListener('click', edUndo);
+$('cap-done').addEventListener('click', () => {
+  if (!ed.base) return;
+  const out = document.createElement('canvas');
+  out.width = ed.base.width; out.height = ed.base.height;
+  edRender(out.getContext('2d'), out.width, out.height);
+  out.toBlob((blob) => {
+    if (!blob) { toast('Could not save the edit'); return; }
+    if (capMediaUrl) URL.revokeObjectURL(capMediaUrl);
+    capMedia = blob; capKind = 'image';
+    capMediaUrl = URL.createObjectURL(blob);
+    const node = $('cap-media').querySelector('img');
+    if (node) node.src = capMediaUrl;
+    closeEditor();
+  }, 'image/jpeg', 0.92);
+});
+window.addEventListener('resize', () => { if (!$('cap-edit').hidden) { edFit(); edRedraw(); } });
+$('cap-send').addEventListener('click', () => {
+  // Keep the caption, then choose who to send to in the Status sheet.
+  capCaption = $('cap-caption').value.trim();
+  $('cap-preview').hidden = true;
+  openCamDialog();
+});
+$('cam-close').addEventListener('click', closeCamDialog);
+$('cam-search').addEventListener('input', renderCam);
+$('cam-dialog').addEventListener('click', (e) => { if (e.target.id === 'cam-dialog') closeCamDialog(); });
+$('new-chat-close').addEventListener('click', closeNewChatDialog);
+$('new-chat-input').addEventListener('input', renderNewChat);
+$('new-chat-dialog').addEventListener('click', (e) => { if (e.target.id === 'new-chat-dialog') closeNewChatDialog(); });
+$('new-chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const digits = $('new-chat-input').value.replace(/\D/g, '');
+    if (digits.length >= 5) openNewChat();
+  }
+  if (e.key === 'Escape') closeNewChatDialog();
+});
+$('back-btn').addEventListener('click', closeChat);
+$('logout').addEventListener('click', async () => {
+  try { await api('/api/logout', { method: 'POST' }); } catch (_) {}
+  window.location = '/login';
+});
+$('lo-reload').addEventListener('click', () => window.location.reload());
+
+/* ── server-side message search (sidebar) ──────────────────────────────── */
+
+let searchTimer = null;
+$('search').addEventListener('input', (e) => {
+  state.filter = e.target.value;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    const q = state.filter.trim();
+    if (q) runSearch(q); else renderChats();
+  }, 350);
+});
+
+async function runSearch(q) {
+  try {
+    const r = await api('/api/search?q=' + encodeURIComponent(q) + '&limit=50');
+    renderSearchResults(q, r.results || []);
+  } catch (_) {}
+}
+
+function renderSearchResults(q, results) {
+  const list = $('chat-list');
+  list.textContent = '';
+  list.appendChild(el('div', 'search-head', 'messages · ' + results.length + ' result' + (results.length === 1 ? '' : 's')));
+  if (!results.length) { list.appendChild(el('div', 'empty', 'no messages match "' + q + '"')); return; }
+  for (const r of results) {
+    const item = el('div', 'chat-item');
+    const col = el('div', 'chat-col');
+    const row1 = el('div', 'row1');
+    row1.appendChild(el('span', 'name', (r.isGroup ? '👥 ' : '') + r.chatName));
+    row1.appendChild(el('span', 'time', fmtTime(r.ts)));
+    col.appendChild(row1);
+    col.appendChild(el('div', 'preview', (r.fromMe ? 'you: ' : '') + r.text));
+    item.appendChild(col);
+    item.addEventListener('click', () => {
+      $('search').value = '';
+      state.filter = '';
+      openChat(r.chatJid, r.chatName, r.isGroup);
+    });
+    list.appendChild(item);
+  }
+}
+
+/* ── composer: text, emoji, mentions ───────────────────────────────────── */
+
+const EMOJI = {
+  'Smileys': '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😙 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶 😏 😒 🙄 😬 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 😤 😡 😠 🤬 😈 👿 💀 ☠️ 💩 🤡 👻 👽 🤖',
+  'Gestures': '👍 👎 👌 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ ✋ 🤚 🖐️ 🖖 👋 🤝 🙏 ✍️ 💪 🦾 👀 👅 👄 🫶 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💯 💢 💥 💫 💦 💨 🔥 ✨ 🎉 🎊 🥳',
+  'Things': '🎁 🏆 🥇 ⚽ 🏀 🎮 🎧 🎤 🎵 🎶 🎬 📷 📱 💻 ⌨️ 💡 🔋 💰 💸 💳 📦 📌 📍 🗓️ ⏰ ✅ ❌ ⚠️ ❓ ❗ 🚀 🌍 🌙 ☀️ ⭐ 🌈 🍕 🍔 🍟 🍗 🍣 ☕ 🍺 🎂',
+};
+function buildEmojiPanel() {
+  const panel = $('emoji-panel');
+  panel.textContent = '';
+  for (const [cat, list] of Object.entries(EMOJI)) {
+    panel.appendChild(el('div', 'emo-cat', cat));
+    const grid = el('div', 'emo-grid');
+    for (const e of list.split(' ')) {
+      const b = el('button', '', e);
+      b.type = 'button';
+      b.addEventListener('click', (ev) => { ev.stopPropagation(); insertAtCaret(e); });
+      grid.appendChild(b);
+    }
+    panel.appendChild(grid);
+  }
+}
+buildEmojiPanel();
+$('emoji-btn').addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  $('emoji-panel').hidden = !$('emoji-panel').hidden;
+});
+
+function insertAtCaret(text) {
+  const input = $('send-text');
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0, start) + text + input.value.slice(end);
+  const pos = start + text.length;
+  input.setSelectionRange(pos, pos);
+  input.focus();
+}
+
+async function membersOf(jid) {
+  if (state.members.has(jid)) return state.members.get(jid);
+  const r = await api('/api/groupmembers?jid=' + encodeURIComponent(jid));
+  const list = r.members || [];
+  state.members.set(jid, list);
+  return list;
+}
+
+let mentionIndex = 0;
+let mentionItems = [];
+$('send-text').addEventListener('input', async () => {
+  sendTyping(true);
+  if (!state.currentIsGroup) { $('mention-list').hidden = true; return; }
+  const input = $('send-text');
+  const before = input.value.slice(0, input.selectionStart ?? input.value.length);
+  const m = before.match(/@(\w{0,20})$/);
+  if (!m) { $('mention-list').hidden = true; return; }
+  const q = m[1].toLowerCase();
+  const members = await membersOf(state.currentJid);
+  mentionItems = members.filter((x) => x.name.toLowerCase().includes(q) || x.jid.split('@')[0].includes(q)).slice(0, 8);
+  renderMentionList();
+});
+
+function renderMentionList() {
+  const box = $('mention-list');
+  box.textContent = '';
+  if (!mentionItems.length) { box.hidden = true; return; }
+  mentionIndex = Math.min(mentionIndex, mentionItems.length - 1);
+  mentionItems.forEach((item, i) => {
+    const row = el('div', 'mention-item' + (i === mentionIndex ? ' sel' : ''));
+    row.appendChild(el('span', '', item.name));
+    row.appendChild(el('small', '', '@' + item.jid.split('@')[0]));
+    row.addEventListener('mousedown', (ev) => { ev.preventDefault(); pickMention(item); });
+    box.appendChild(row);
+  });
+  box.hidden = false;
+}
+
+function pickMention(item) {
+  const input = $('send-text');
+  const caret = input.selectionStart ?? input.value.length;
+  const before = input.value.slice(0, caret);
+  const after = input.value.slice(caret);
+  const token = '@' + item.jid.split('@')[0] + ' ';
+  const replaced = before.replace(/@\w{0,20}$/, token);
+  input.value = replaced + after;
+  input.setSelectionRange(replaced.length, replaced.length);
+  state.mentions.set(item.jid, true);
+  $('mention-list').hidden = true;
+  mentionIndex = 0;
+  input.focus();
+}
+
+$('send-text').addEventListener('keydown', (e) => {
+  if ($('mention-list').hidden) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); mentionIndex = (mentionIndex + 1) % mentionItems.length; renderMentionList(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); mentionIndex = (mentionIndex - 1 + mentionItems.length) % mentionItems.length; renderMentionList(); }
+  else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(mentionItems[mentionIndex]); }
+  else if (e.key === 'Escape') { $('mention-list').hidden = true; }
+});
+
+$('send-text').addEventListener('blur', () => { stopTyping(); });
+window.addEventListener('blur', stopTyping);
+
+/* ── sending: text, edit, attachments ──────────────────────────────────── */
+
+function mentionsForText(text) {
+  return Array.from(state.mentions.keys()).filter((jid) => text.includes('@' + jid.split('@')[0]));
+}
+
+$('send-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('send-text').value.trim();
+  if (!text || !state.currentJid) return;
+  $('send-text').value = '';
+  stopTyping();
+  $('mention-list').hidden = true;
+  let pend = null;
+  try {
+    if (state.editing) {
+      const id = state.editing.id;
+      setEditing(null);
+      await postJson('/api/edit', { jid: state.currentJid, msgId: id, text });
+    } else {
+      const body = { jid: state.currentJid, text };
+      if (state.replyTo) body.quotedMsgId = state.replyTo.id;
+      const mentions = mentionsForText(text);
+      if (mentions.length) body.mentions = mentions;
+      // Show the message now; WhatsApp's round trip takes a moment.
+      pend = { pending: true, jid: state.currentJid, fromMe: true, text, ts: Date.now(), status: 1 };
+      state.pending.push(pend);
+      renderMessages(true);
+      $('messages').scrollTop = $('messages').scrollHeight;
+      await postJson('/api/send', body);
+      setReply(null);
+      state.mentions = new Map();
+    }
+    loadMessages();
+  } catch (err) {
+    if (pend) state.pending = state.pending.filter((p) => p !== pend);
+    renderMessages(false);
+    alert(err.message || 'send failed');
+  }
+});
+
+$('attach-btn').addEventListener('click', () => {
+  if (state.currentJid && state.connected) $('attach-input').click();
+});
+$('attach-input').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file || !state.currentJid) return;
+  if (file.size > 15 * 1024 * 1024) { alert('file too large (max 15MB)'); return; }
+  let base64;
+  try {
+    const dataUrl = await readAsDataUrl(file);
+    base64 = String(dataUrl).split(',')[1];
+  } catch (_) { alert('could not read the file'); return; }
+  $('send-btn').disabled = true;
+  $('attach-btn').disabled = true;
+  try {
+    const body = {
+      jid: state.currentJid,
+      media: { mime: file.type || 'application/octet-stream', fileName: file.name, data: base64 },
+    };
+    if (state.replyTo) body.quotedMsgId = state.replyTo.id;
+    await postJson('/api/send', body);
+    setReply(null);
+    loadMessages();
+  } catch (err) {
+    alert(err.message || 'upload failed');
+  } finally {
+    setComposerEnabled();
+  }
+});
+
+function readAsDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/* ── voice notes ───────────────────────────────────────────────────────── */
+
+function fmtDuration(sec) {
+  const s = Math.floor(sec);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+function pickRecorderMime() {
+  const options = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+  return options.find((o) => MediaRecorder.isTypeSupported(o)) || '';
+}
+
+$('mic-btn').addEventListener('click', async () => {
+  if (state.rec) { stopRecording(true); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+    alert('Voice notes need a secure connection (https). Open TEDDY-XMD-ULTRA over https to record.');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (_) {
+    alert('microphone permission was denied');
+    return;
+  }
+  const mime = pickRecorderMime();
+  const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+  state.recChunks = [];
+  rec.ondataavailable = (ev) => { if (ev.data && ev.data.size) state.recChunks.push(ev.data); };
+  rec.start(250);
+  state.rec = { recorder: rec, stream, mime: rec.mimeType || mime || 'audio/webm' };
+  state.recStart = Date.now();
+  $('rec-bar').hidden = false;
+  $('rec-time').textContent = '0:00';
+  state.recTimer = setInterval(() => { $('rec-time').textContent = fmtDuration((Date.now() - state.recStart) / 1000); }, 250);
+});
+
+$('rec-cancel').addEventListener('click', () => cancelRecording());
+
+function cancelRecording() {
+  if (!state.rec) return;
+  stopRecording(false);
+}
+
+function stopRecording(send) {
+  const { recorder, stream, mime } = state.rec;
+  state.rec = null;
+  clearInterval(state.recTimer);
+  $('rec-bar').hidden = true;
+  recorder.onstop = async () => {
+    stream.getTracks().forEach((t) => t.stop());
+    if (!send || !state.recChunks.length || !state.currentJid) { state.recChunks = []; return; }
+    const blob = new Blob(state.recChunks, { type: mime });
+    state.recChunks = [];
+    $('mic-btn').disabled = true;
+    try {
+      const dataUrl = await readAsDataUrl(blob);
+      const body = { jid: state.currentJid, audio: String(dataUrl).split(',')[1] };
+      if (state.replyTo) body.quotedMsgId = state.replyTo.id;
+      await postJson('/api/voice', body);
+      setReply(null);
+      loadMessages();
+    } catch (err) {
+      alert(err.message || 'voice note failed');
+    } finally {
+      setComposerEnabled();
+    }
+  };
+  if (recorder.state !== 'inactive') recorder.stop();
+  else recorder.onstop();
+}
+
+/* ── polls ─────────────────────────────────────────────────────────────── */
+
+function renderPollOptionInputs(count) {
+  const box = $('poll-opts');
+  box.textContent = '';
+  for (let i = 0; i < count; i++) {
+    const input = el('input');
+    input.placeholder = 'option ' + (i + 1);
+    input.maxLength = 100;
+    box.appendChild(input);
+  }
+}
+
+$('head-poll').addEventListener('click', () => {
+  $('poll-q').value = '';
+  $('poll-multi').checked = false;
+  renderPollOptionInputs(2);
+  $('poll-modal').hidden = false;
+  $('poll-q').focus();
+});
+$('poll-add').addEventListener('click', () => {
+  const n = $('poll-opts').children.length;
+  if (n >= 12) return;
+  const input = el('input');
+  input.placeholder = 'option ' + (n + 1);
+  input.maxLength = 100;
+  $('poll-opts').appendChild(input);
+});
+$('poll-cancel').addEventListener('click', () => { $('poll-modal').hidden = true; });
+$('poll-create').addEventListener('click', async () => {
+  const name = $('poll-q').value.trim();
+  const options = Array.from($('poll-opts').children).map((i) => i.value.trim()).filter(Boolean);
+  if (!name) { alert('add a question'); return; }
+  if (options.length < 2) { alert('add at least two options'); return; }
+  try {
+    await postJson('/api/poll', {
+      jid: state.currentJid,
+      name,
+      options,
+      selectableCount: $('poll-multi').checked ? 0 : 1,
+    });
+    $('poll-modal').hidden = true;
+    loadMessages();
+  } catch (err) { alert(err.message || 'poll failed'); }
+});
+
+/* ── timers + boot ─────────────────────────────────────────────────────── */
+
+setInterval(() => { if (!document.hidden) { loadStatus(); loadChats(); if (state.tab === 'updates') loadUpdates(); if (state.tab === 'calls') loadCalls(); } }, 5000);
+setInterval(() => { if (!document.hidden) loadMessages(); }, 1200);
+$('messages').addEventListener('scroll', () => {
+  if ($('messages').scrollTop < 40 && state.hasMore) loadOlder();
+});
+
+loadStatus();
+loadChats();
+</script>
+</body>
+</html>

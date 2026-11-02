@@ -1,0 +1,33 @@
+{
+  "name": "Teddy X Ultra",
+  "description": "Teddy X Ultra - WhatsApp MD Multi-Device Bot powered by Baileys",
+  "repository": "",
+  "logo": "",
+  "keywords": [
+    "whatsapp",
+    "baileys",
+    "bot",
+    "node",
+    "md",
+    "teddy-ultra"
+  ],
+  "stack": "heroku-24",
+  "buildpacks": [
+    {
+      "url": "https://github.com/heroku/heroku-buildpack-nodejs.git"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "env": {
+    "SESSION_ID": {
+      "description": "Official session mechanism: pair at https://burning-lorena-eminentbo-ede53cc1.koyeb.app/pair and paste the TEDDY-XMD~<handle> it gives you. This is the only session mechanism.",
+      "required": false,
+      "value": ""
+    }
+  }
+}
