@@ -2448,133 +2448,110 @@ function startKeepAliveServer() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="refresh" content="10">
-  <title>TEDDY-XMD-ULTRA Ultra — Dashboard</title>
+  <title>TEDDY-XMD ULTRA — Dashboard</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+    :root {
+      color-scheme: dark;
+      --bg: #070b14;
+      --panel: rgba(17, 25, 43, .78);
+      --line: rgba(148, 163, 184, .15);
+      --muted: #91a0b8;
+      --cyan: #43e8ff;
+      --violet: #a78bfa;
+      --green: #4ade80;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: radial-gradient(circle at 20% 30%, #0a0f1e, #03060c);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      color: #e2f0ff;
       min-height: 100vh;
+      padding: 42px 20px;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 2rem;
-      position: relative;
       overflow-x: hidden;
+      color: #edf5ff;
+      font-family: 'DM Sans', sans-serif;
+      background:
+        radial-gradient(ellipse at 12% 8%, rgba(67,232,255,.14), transparent 34%),
+        radial-gradient(ellipse at 90% 88%, rgba(167,139,250,.16), transparent 36%),
+        linear-gradient(145deg, #070b14 0%, #0b1222 52%, #080d18 100%);
     }
-    body::before {
+    body::before, body::after {
       content: '';
       position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background-image: radial-gradient(2px 2px at 20px 30px, #00ffe0, rgba(0,0,0,0)), radial-gradient(1px 1px at 80px 140px, #ff6b35, rgba(0,0,0,0)), radial-gradient(3px 3px at 260px 80px, #00aaff, rgba(0,0,0,0));
-      background-size: 200px 200px, 180px 180px, 220px 220px;
-      background-repeat: no-repeat;
-      opacity: 0.3;
-      pointer-events: none;
-      animation: drift 60s linear infinite;
-    }
-    @keyframes drift {
-      0% { background-position: 0 0, 0 0, 0 0; }
-      100% { background-position: 400px 400px, 300px 300px, 500px 500px; }
-    }
-    .wrapper { max-width: 500px; width: 100%; z-index: 2; position: relative; }
-    .header { text-align: center; margin-bottom: 2.5rem; }
-    .bot-name {
-      font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Consolas', 'Courier New', monospace;
-      font-size: 2.5rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, #00ffe0, #ff6b35);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      text-shadow: 0 0 20px rgba(0,255,224,0.3);
-      letter-spacing: -0.02em;
-      display: inline-block;
-      animation: glitch 3s infinite;
-    }
-    @keyframes glitch {
-      0%, 100% { transform: skew(0deg, 0deg); opacity: 1; }
-      95% { transform: skew(0deg, 0deg); opacity: 1; }
-      96% { transform: skew(2deg, 1deg); opacity: 0.8; text-shadow: -2px 0 #ff6b35, 2px 0 #00ffe0; }
-      97% { transform: skew(-1deg, -0.5deg); opacity: 0.9; }
-    }
-    .tagline { font-size: 0.8rem; letter-spacing: 4px; text-transform: uppercase; color: #7f9eb5; margin-top: 0.5rem; }
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      background: rgba(0,255,224,0.1);
-      border-radius: 60px;
-      padding: 0.4rem 1.5rem;
-      margin-top: 1.2rem;
-      font-size: 0.75rem;
-      font-weight: 500;
-      letter-spacing: 1px;
-      backdrop-filter: blur(4px);
-    }
-    .dot {
-      width: 10px; height: 10px;
-      background: ${statusColor};
+      width: 280px; height: 280px;
       border-radius: 50%;
-      box-shadow: 0 0 8px ${statusColor};
-      animation: pulse 1.4s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.8); }
-    }
-    .dashboard-grid { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; margin-bottom: 2rem; }
-    .card {
-      width: 100%; max-width: 400px;
-      background: rgba(10, 20, 28, 0.65);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(0, 255, 224, 0.2);
-      border-radius: 0;
-      padding: 1.5rem;
-      transition: transform 0.2s ease, border-color 0.2s;
-      box-shadow: 0 0 15px rgba(0, 255, 224, 0.2), 0 8px 20px rgba(0,0,0,0.2);
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-    .card::before, .card::after {
-      content: '';
-      position: absolute;
-      width: 50px; height: 50px;
+      filter: blur(90px);
+      opacity: .16;
       pointer-events: none;
-      transition: 0.3s;
     }
-    .card::before { top: 0; left: 0; border-top: 2px solid #00ffe0; border-left: 2px solid #00ffe0; border-radius: 0 0 20px 0; box-shadow: -2px -2px 12px rgba(0,255,224,0.5); }
-    .card::after  { bottom: 0; right: 0; border-bottom: 2px solid #ff6b35; border-right: 2px solid #ff6b35; border-radius: 20px 0 0 0; box-shadow: 2px 2px 12px rgba(255,107,53,0.5); }
-    .card:hover::before { border-top-color: #ff6b35; border-left-color: #ff6b35; box-shadow: -2px -2px 18px #ff6b35; }
-    .card:hover::after  { border-bottom-color: #00ffe0; border-right-color: #00ffe0; box-shadow: 2px 2px 18px #00ffe0; }
-    .card:hover { transform: translateY(-4px); border-color: rgba(0, 255, 224, 0.6); box-shadow: 0 0 25px rgba(0,255,224,0.3), 0 15px 30px rgba(0,0,0,0.3); }
-    .card-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: #6c8ea0; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
-    .card-value { font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Consolas', 'Courier New', monospace; font-size: 1.6rem; font-weight: 600; color: #00ffe0; text-shadow: 0 0 6px rgba(0,255,224,0.3); line-height: 1.2; word-break: break-word; }
-    .card-value.small { font-size: 1.2rem; }
-    .card-sub { font-size: 0.65rem; color: #8aaec0; margin-top: 0.6rem; border-top: 1px dashed rgba(0,255,224,0.2); padding-top: 0.6rem; }
-    .footer { text-align: center; margin-top: 2rem; font-size: 0.7rem; color: #5a7c8c; letter-spacing: 1px; text-transform: uppercase; }
-    .footer strong { color: #00ffe0; }
-    .refresh-note { text-align: center; font-size: 0.65rem; margin-top: 1rem; opacity: 0.6; }
-    @media (max-width: 480px) {
-      body { padding: 1rem; }
-      .bot-name { font-size: 1.8rem; }
-      .card-value { font-size: 1.3rem; }
-      .card-value.small { font-size: 1rem; }
-      .card { max-width: 100%; }
+    body::before { top: -130px; left: -100px; background: #22d3ee; }
+    body::after { right: -120px; bottom: -140px; background: #8b5cf6; }
+    .wrapper { width: 100%; max-width: 760px; position: relative; z-index: 1; }
+    .header { text-align: center; margin-bottom: 30px; }
+    .brand-mark {
+      width: 62px; height: 62px; margin: 0 auto 17px;
+      display: grid; place-items: center; border-radius: 20px;
+      font-size: 30px;
+      background: linear-gradient(145deg, rgba(67,232,255,.18), rgba(167,139,250,.2));
+      border: 1px solid rgba(125,211,252,.28);
+      box-shadow: 0 10px 40px rgba(34,211,238,.12), inset 0 1px rgba(255,255,255,.12);
     }
+    .bot-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(2rem, 7vw, 3.25rem);
+      line-height: 1.1; font-weight: 700; letter-spacing: -.055em;
+      background: linear-gradient(100deg, #f8fafc 8%, #67e8f9 48%, #c4b5fd 92%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .tagline { margin-top: 10px; color: var(--muted); font-size: .76rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; }
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 9px;
+      margin-top: 21px; padding: 9px 16px; border-radius: 999px;
+      color: ${connected ? '#86efac' : (global.botState === 'connecting' ? '#fcd34d' : '#fda4af')};
+      background: ${connected ? 'rgba(34,197,94,.10)' : (global.botState === 'connecting' ? 'rgba(245,158,11,.10)' : 'rgba(244,63,94,.10)')};
+      border: 1px solid ${connected ? 'rgba(74,222,128,.25)' : (global.botState === 'connecting' ? 'rgba(251,191,36,.25)' : 'rgba(251,113,133,.25)')};
+      font-size: .72rem; font-weight: 800; letter-spacing: .1em;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: ${statusColor}; box-shadow: 0 0 13px ${statusColor}; animation: pulse 1.6s infinite; }
+    @keyframes pulse { 50% { opacity: .42; transform: scale(.78); } }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; margin: 0 auto 24px; }
+    .card {
+      min-width: 0; padding: 23px 21px; position: relative; overflow: hidden;
+      text-align: left; border-radius: 20px;
+      background: linear-gradient(145deg, rgba(20,31,52,.88), rgba(12,19,34,.82));
+      border: 1px solid var(--line);
+      box-shadow: 0 14px 35px rgba(0,0,0,.18), inset 0 1px rgba(255,255,255,.035);
+      transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+    }
+    .card::after { content: ''; position: absolute; width: 110px; height: 110px; right: -55px; top: -65px; border-radius: 50%; background: rgba(67,232,255,.08); filter: blur(3px); }
+    .card:hover { transform: translateY(-4px); border-color: rgba(103,232,249,.38); box-shadow: 0 18px 42px rgba(0,0,0,.28), 0 0 25px rgba(34,211,238,.07); }
+    .card-title { position: relative; z-index: 1; display: flex; align-items: center; gap: 9px; margin-bottom: 15px; color: #9aabc3; font-size: .68rem; font-weight: 800; letter-spacing: .13em; }
+    .card-value { position: relative; z-index: 1; color: #f1f7ff; font-family: 'Space Grotesk', sans-serif; font-size: clamp(1.15rem, 4vw, 1.65rem); font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+    .card-value.small { font-size: clamp(.98rem, 3.2vw, 1.25rem); }
+    .card-sub { position: relative; z-index: 1; margin-top: 9px; color: #74849d; font-size: .72rem; }
+    .footer { padding: 19px 12px 0; text-align: center; color: #8494ad; font-size: .78rem; letter-spacing: .035em; }
+    .footer strong { color: #67e8f9; font-weight: 800; }
+    .footer-brand { color: #c4b5fd; font-weight: 700; }
+    .refresh-note { margin-top: 12px; text-align: center; color: #64748b; font-size: .68rem; }
+    @media (max-width: 520px) {
+      body { padding: 30px 15px; align-items: flex-start; }
+      .header { margin-bottom: 24px; }
+      .dashboard-grid { gap: 11px; }
+      .card { padding: 18px 15px; border-radius: 16px; }
+      .card-title { font-size: .61rem; letter-spacing: .09em; }
+      .card-sub { font-size: .66rem; }
+    }
+    @media (max-width: 350px) { .dashboard-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
 <div class="wrapper">
   ${loggedOutBanner}
   <div class="header">
-    <div class="bot-name">TEDDY-XMD-ULTRA Ultra</div>
-    <div class="tagline">Autonomous Bot Matrix</div>
+    <div class="brand-mark">🧸</div>
+    <div class="bot-name">TEDDY-XMD ULTRA</div>
+    <div class="tagline">King of Automation · Teddy Tech</div>
     <div class="status-badge">
       <span class="dot"></span> ${statusLabel}
     </div>
@@ -2602,7 +2579,7 @@ function startKeepAliveServer() {
     </div>
   </div>
   <div class="footer">
-    ⚡ Powered by <strong>supreme</strong> &nbsp;|&nbsp; TEDDY-XMD-ULTRA Ultra
+    ⚡ Powered by <strong>Teddy Tech</strong> <span class="footer-brand">· TEDDY-XMD ULTRA</span>
   </div>
   <div class="refresh-note">⟳ dashboard auto-refreshes every 10 seconds</div>
 </div>
