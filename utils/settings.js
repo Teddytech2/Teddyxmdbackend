@@ -20,7 +20,7 @@ const DEFAULTS = {
   prefix:    '.',
   botName:   'TEDDY-XMD-ULTRA',
   timezone:  'Africa/Nairobi',
-  menuStyle: '5',
+  menuStyle: '4',
   fontStyle: 'normal',
 };
 

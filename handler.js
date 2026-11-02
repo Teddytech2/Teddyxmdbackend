@@ -11,6 +11,20 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
+
+// TEDDY-XMD ULTRA shared command reply frame. Existing framed messages are
+// left untouched; ordinary command replies receive the same branded layout.
+function formatTeddyCommandReply(value) {
+  const text = String(value ?? '');
+  if (!text.trim() || /^(?:┏|╭|╔|┌)/u.test(text.trimStart())) return text;
+  const lines = text.split(/\r?\n/);
+  return [
+    '┏━━❐✧ *TEDDY-XMD ULTRA* ✧❐',
+    ...lines.map(line => `┃✦ ${line}`),
+    '┗━━━━━━━━━━━━━'
+  ].join('\n');
+}
+
 // Group metadata cache to prevent rate limiting
 const groupMetadataCache = new Map();
 const CACHE_TTL = 300000; // 5 minute cache (was 1 min)
@@ -1433,7 +1447,7 @@ const handleMessage = async (sock, msg) => {
       isSudo: senderIsSudo,
       prefix: database.getBotSetting('prefix'),
       command: commandName,
-      reply: (text) => sock.sendMessage(from, { text: applyFont(text) }, { quoted: msg }),
+      reply: (text) => sock.sendMessage(from, { text: applyFont(formatTeddyCommandReply(text)) }, { quoted: msg }),
       react: (emoji) => sock.sendMessage(from, { react: { text: emoji, key: msg.key } }),
       getCommandCount: () => commands.commandCount ?? commands.size,
       getAliasCount: () => commands.aliasCount ?? 0,

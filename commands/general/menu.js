@@ -64,10 +64,10 @@ function getMenuStyle() {
     const runtimeSettings = require('../../utils/settings');
     const fromStore = runtimeSettings.get('menuStyle');
     if (fromStore && fromStore !== '1') return fromStore;
-    if (!fs.existsSync(MENU_SETTINGS_FILE)) return fromStore || '5';
+    if (!fs.existsSync(MENU_SETTINGS_FILE)) return fromStore || '4';
     return JSON.parse(fs.readFileSync(MENU_SETTINGS_FILE, 'utf8')).menuStyle || fromStore || '1';
   } catch {
-    return '1';
+    return '4';
   }
 }
 
@@ -144,17 +144,17 @@ function buildMenuText(categories, extra, totalCount, speed) {
     if (db.getMenuSettings) show = { ...show, ...db.getMenuSettings() };
   } catch { /* keep defaults */ }
 
-  let menu =  `┏━━❐◈  ${bot} ◈\n`;
-  menu += `┃ *ᴘʀᴇꜰɪx:* [ ${prefix} ]\n`;
-  menu += `┃ *ᴏᴡɴᴇʀ:* ${ownerName}\n`;
-  menu += `┃ *ᴍᴏᴅᴇ:* ${currentMode}\n`;
-  menu += `┃ *ᴘʟᴀᴛꜰᴏʀᴍ:* ${hostName}\n`;
-  menu += `┃ *ꜱᴘᴇᴇᴅ:* ${ping} ms\n`;
-  if (show.showUptime) menu += `┃ *ᴜᴘᴛɪᴍᴇ:* ${uptimeFormatted}\n`;
-  menu += `┃ *Vᴇʀꜱɪᴏɴ:* v${db.VERSION}\n`;
-  if (show.showMemory) menu += `┃ *ᴜꜱᴀɢᴇ:* ${formatMemory(botUsedMemory)} of ${formatMemory(totalMemory)}\n`;
-  if (show.showProgressBar) menu += `┃ *ʀᴀᴍ:* ${progressBar(systemUsedMemory, totalMemory)}\n`;
-  if (show.showPluginCount) menu += `┃ *Cᴏᴍᴍᴀɴᴅꜱ:* ${totalCount}\n`;
+  let menu =  `┏━━❐✧ *TEDDY-XMD ULTRA* ✧❐\n`;
+  menu += `┃✦ *Prefix:* ${prefix}\n`;
+  menu += `┃✦ *Owner:* ${ownerName}\n`;
+  menu += `┃✦ *Mode:* ${currentMode}\n`;
+  menu += `┃✦ *Platform:* ${hostName}\n`;
+  menu += `┃✦ *Speed:* ${ping} ms\n`;
+  if (show.showUptime) menu += `┃✦ *Uptime:* ${uptimeFormatted}\n`;
+  menu += `┃✦ *Version:* v${db.VERSION}\n`;
+  if (show.showMemory) menu += `┃✦ *Usage:* ${formatMemory(botUsedMemory)} of ${formatMemory(totalMemory)}\n`;
+  if (show.showProgressBar) menu += `┃✦ *RAM:* ${progressBar(systemUsedMemory, totalMemory)}\n`;
+  if (show.showPluginCount) menu += `┃✦ *Commands:* ${totalCount}\n`;
   menu += `┗❐\n${readmore}\n`;
 
   const allCategoryKeys = Object.keys(categories).filter(k => categories[k]?.length > 0);
@@ -168,11 +168,11 @@ function buildMenuText(categories, extra, totalCount, speed) {
     const cmds = categories[key];
     if (!cmds || cmds.length === 0) continue;
     const label = (CATEGORY_LABELS[key] || `${key.toUpperCase()}-CMD`);
-    menu += `┏━━❐◈  \`${label}\` ◈\n`;
+    menu += `┏━━❐✧ *${label}* ✧❐\n`;
     for (const cmd of cmds) {
-      menu += `┃◈${cmd.name}\n`;
+      menu += `┃✦ ${cmd.name}\n`;
     }
-    menu += `┗❐\n`;
+    menu += `┗━━━━━━━━━━━━━\n`;
     sectionIndex++;
     if (sectionIndex % 3 === 0) {
       menu += `${readmore}\n`;

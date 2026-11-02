@@ -1479,7 +1479,7 @@ const BOT_SETTINGS_DEFAULTS = {
 
   // Menu presentation settings are SQLite-backed. The menu renderer and owner
   // commands do not use a file-based fallback.
-  menuStyle: '5',
+  menuStyle: '4',
   menuShowMemory: true,
   menuShowUptime: true,
   menuShowPluginCount: true,
@@ -1864,7 +1864,7 @@ const clearStoredLoginMethod = () => {
 // The menu renderer and owner commands use these SQLite-backed values only.
 const MENU_STYLE_VALUES = Object.freeze(['1', '2', '3', '4', '5', '6']);
 const MENU_SETTINGS_DEFAULTS = Object.freeze({
-  menuStyle: '5',
+  menuStyle: '4',
   showMemory: true,
   showUptime: true,
   showPluginCount: true,

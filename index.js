@@ -889,18 +889,26 @@ async function sendWelcomeMessage(sock) {
         const platform = detectPlatform()
         const ownerName = (Array.isArray(teddyDatabase.getOwnerNames()) ? teddyDatabase.getOwnerNames()[0] : teddyDatabase.getOwnerNames()) || 'Bot Owner'
 
-        const welcomeText = applyFont(
-`┏━━━✧ CONNECTED ✧━━━━
-┃✧ Bot: ${teddyDatabase.getBotSetting('botName')}
-┃✧ Prefix: [ ${prefix} ]
-┃✧ Owner: ${ownerName}
-┃✧ Platform: ${platform}
-┃✧ Status: online 
-┃✧ Time: ${new Date().toLocaleString()}
-┃✧ T.Group: t.me/teddyOff
-┃✧ Telegram: t.me/supremlord
-┃✧ Repo: https://github.com/Vinpink2
-┗━━━━━━━━━━━━━━━` )
+        const connectedNumber = String(sock.user.id || '').split(':')[0].split('@')[0]
+        const connectedTime = new Date().toLocaleString('en-GB', {
+            timeZone: 'Africa/Nairobi',
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: false
+        })
+
+        const welcomeText =
+`┏━━❐✧ *TEDDY-XMD ULTRA* ✧❐
+┃✦ *Status:* Online ✅
+┃✦ *Platform:* ${platform.replace(/^[^A-Za-z0-9]+/, '')}
+┃✦ *Number:* ${connectedNumber}
+┃✦ *Owner:* ${ownerName === 'Bot Owner' ? 'Teddy' : ownerName}
+┃✦ *Mode:* ${String(teddyDatabase.getBotMode?.() || teddyDatabase.getBotSetting('mode') || 'PUBLIC').toUpperCase()}
+┃✦ *Time:* ${connectedTime}
+┃✦ *Prefix:* ${prefix}
+┃✦ *Developer:* Teddy
+┃✦ *Contact:* +254799963583
+┗━━━━━━━━━━━━━`
 
         // Fold warm-up info under the CONNECTED banner. Only a session-server restore warms up.
         let outgoingText = welcomeText

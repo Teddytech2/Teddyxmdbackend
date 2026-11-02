@@ -12,7 +12,7 @@ const MENU_STYLES = {
   '1': 'Document with thumbnail ad reply',
   '2': 'Simple text reply',
   '3': 'Text with external ad reply',
-  '4': 'Image with caption',
+  '4': 'TEDDY-XMD ULTRA branded image menu',
   '5': 'Interactive native flow message',
   '6': 'Payment request style',
 };
