@@ -28,6 +28,14 @@
       "description": "Official session mechanism: pair at https://burning-lorena-eminentbo-ede53cc1.koyeb.app/pair and paste the TEDDY-XMD~<handle> it gives you. This is the only session mechanism.",
       "required": false,
       "value": ""
+    },
+    "TEDDY_BOT_ID": {
+      "description": "Optional stable bot identity when multiple deployments share one PostgreSQL database.",
+      "required": false,
+      "value": ""
     }
-  }
+  },
+  "addons": [
+    "heroku-postgresql:essential-0"
+  ]
 }
