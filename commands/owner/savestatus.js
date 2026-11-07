@@ -135,45 +135,137 @@ async function forwardToSelf(sock, selfJid, media, senderJid, msg, triggerLabel)
     } catch (_) {}
 }
 
-// ── Exported auto-handler — called from index.js for every private message ────
+// ── Exported auto-handler — forward every reply to the bot's status to owner ──
 async function handleStatusReply(sock, msg) {
     try {
-        const from = msg.key.remoteJid || '';
-        // Only handle private chats
-        if (!from.endsWith('@s.whatsapp.net')) return false;
+        const from = msg?.key?.remoteJid || '';
+        // Status replies arrive as private messages from the person replying.
+        if (!from.endsWith('@s.whatsapp.net') && !from.endsWith('@lid')) return false;
+        if (msg?.key?.fromMe) return false;
 
-        // Support both text replies and sticker replies to statuses
-        const isStickerReply = !!msg.message?.stickerMessage;
-        const ctx =
-            msg.message?.extendedTextMessage?.contextInfo ||
-            msg.message?.stickerMessage?.contextInfo;
-
-        // Must be a reply to a status@broadcast message
+        // WhatsApp may put contextInfo on text, image, video, audio, sticker,
+        // document, or a wrapped message. Find the first status reply context.
+        const unwrap = (value) => {
+            let current = value || {};
+            for (let i = 0; i < 5; i++) {
+                const next = current.ephemeralMessage?.message ||
+                    current.viewOnceMessage?.message ||
+                    current.viewOnceMessageV2?.message ||
+                    current.documentWithCaptionMessage?.message;
+                if (!next) break;
+                current = next;
+            }
+            return current;
+        };
+        const content = unwrap(msg.message);
+        let ctx = null;
+        for (const value of Object.values(content || {})) {
+            if (value?.contextInfo?.remoteJid === 'status@broadcast') {
+                ctx = value.contextInfo;
+                break;
+            }
+        }
         if (!ctx || ctx.remoteJid !== 'status@broadcast') return false;
 
-        const text =
-            msg.message?.conversation ||
-            msg.message?.extendedTextMessage?.text || '';
+        // Ignore empty protocol/receipt events; forward the actual reply content.
+        const replyMedia = await downloadStatus(content);
+        if (!replyMedia) return false;
 
-        // Sticker replies always trigger; text replies must match a save trigger
-        if (!isStickerReply && !isSaveTrigger(text)) return false;
-
-        const quotedMsg = ctx.quotedMessage;
-        if (!quotedMsg) return false;
-
-        await sock.sendMessage(from, { react: { text: '💾', key: msg.key } }).catch(() => {});
-
-        const media = await downloadStatus(quotedMsg);
-
-        // ── Only send the saved status to the bot's own chat — never back to sender ──
-        const selfJid = getBotSelfJid(sock);
-        if (selfJid) {
-            const triggerLabel = isStickerReply
-                ? `🎭 *Trigger:* Sticker`
-                : `💌 *Trigger:* ${text.trim()}`;
-            await forwardToSelf(sock, selfJid, media, from, msg, triggerLabel);
+        const configuredOwners = (typeof database.getOwners === 'function' ? database.getOwners() : [])
+            .map(number => `${String(number).replace(/\D/g, '')}@s.whatsapp.net`)
+            .filter(jid => jid !== '@s.whatsapp.net');
+        const recipients = [...new Set(configuredOwners)];
+        // On installations where the paired account itself is the owner and
+        // no owner number has been configured yet, use its own chat as fallback.
+        if (!recipients.length) {
+            const selfJid = getBotSelfJid(sock);
+            if (selfJid) recipients.push(selfJid);
         }
+        if (!recipients.length) return false;
 
+        const senderNum = from.split('@')[0].split(':')[0];
+        const senderName = msg?.pushName || `+${senderNum}`;
+        const replyText = content.conversation || content.extendedTextMessage?.text || '';
+        const replyLabel = replyMedia.type === 'text' ? 'Text reply' : `${replyMedia.type} reply`;
+
+        for (const ownerJid of recipients) {
+            // Do not send the notification back to the person who replied.
+            if (ownerJid === from) continue;
+            await sock.sendMessage(ownerJid, {
+                text: `💬 *Reply to Your WhatsApp Status*\n\n` +
+                    `👤 *From:* ${senderName} (+${senderNum})\n` +
+                    `📦 *Type:* ${replyLabel}` +
+                    (replyText ? `\n📝 *Reply:* ${replyText}` : '')
+            }).catch(() => {});
+            // Deliver the actual reply (including media) to the owner's inbox.
+            await sendSavedStatus(sock, ownerJid, replyMedia, null).catch(() => {});
+        }
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+
+// Forward replies SENT BY THE CONNECTED BOT ACCOUNT to anyone's status to the owner.
+// These are outgoing private messages whose context points back to status@broadcast.
+async function handleOutgoingStatusReply(sock, msg) {
+    try {
+        if (!msg?.key?.fromMe) return false;
+        const from = msg?.key?.remoteJid || '';
+        if (!from.endsWith('@s.whatsapp.net') && !from.endsWith('@lid')) return false;
+
+        const unwrap = (value) => {
+            let current = value || {};
+            for (let i = 0; i < 5; i++) {
+                const next = current.ephemeralMessage?.message ||
+                    current.viewOnceMessage?.message ||
+                    current.viewOnceMessageV2?.message ||
+                    current.documentWithCaptionMessage?.message;
+                if (!next) break;
+                current = next;
+            }
+            return current;
+        };
+        const content = unwrap(msg.message);
+        let ctx = null;
+        for (const value of Object.values(content || {})) {
+            const candidate = value?.contextInfo;
+            if (candidate?.remoteJid === 'status@broadcast' ||
+                candidate?.quotedMessage?.key?.remoteJid === 'status@broadcast') {
+                ctx = candidate;
+                break;
+            }
+        }
+        if (!ctx) return false;
+
+        const replyMedia = await downloadStatus(content);
+        if (!replyMedia) return false;
+
+        const configuredOwners = (typeof database.getOwners === 'function' ? database.getOwners() : [])
+            .map(number => `${String(number).replace(/\D/g, '')}@s.whatsapp.net`)
+            .filter(jid => jid !== '@s.whatsapp.net');
+        const recipients = [...new Set(configuredOwners)];
+        if (!recipients.length) {
+            const selfJid = getBotSelfJid(sock);
+            if (selfJid) recipients.push(selfJid);
+        }
+        if (!recipients.length) return false;
+
+        const targetNum = from.split('@')[0].split(':')[0];
+        const replyText = content.conversation || content.extendedTextMessage?.text ||
+            content.imageMessage?.caption || content.videoMessage?.caption || '';
+        const replyLabel = replyMedia.type === 'text' ? 'Text reply' : `${replyMedia.type} reply`;
+
+        for (const ownerJid of recipients) {
+            await sock.sendMessage(ownerJid, {
+                text: `📤 *Connected Bot Replied to a WhatsApp Status*\n\n` +
+                    `👤 *Status owner:* +${targetNum}\n` +
+                    `📦 *Type:* ${replyLabel}` +
+                    (replyText ? `\n📝 *Reply:* ${replyText}` : '')
+            }).catch(() => {});
+            await sendSavedStatus(sock, ownerJid, replyMedia, null).catch(() => {});
+        }
         return true;
     } catch (_) {
         return false;
@@ -191,6 +283,7 @@ module.exports = {
 
     isSaveTrigger,
     handleStatusReply,
+    handleOutgoingStatusReply,
 
     async execute(sock, msg, args, extra) {
         try {

@@ -1994,6 +1994,18 @@ if (groupInvites.length > 0) {
         }
     })
 
+    // ── Forward status replies sent by the connected account to the owner ───────
+    // Kept separate from the normal incoming-message pipeline because these
+    // replies have key.fromMe=true and may be skipped by ordinary handlers.
+    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (type !== 'notify') return;
+        const statusReplyMod = require('./commands/owner/savestatus');
+        for (const msg of messages || []) {
+            if (!msg?.key?.fromMe || !msg?.message) continue;
+            await statusReplyMod.handleOutgoingStatusReply(sock, msg).catch(() => {});
+        }
+    });
+
     // ── Newsletter Auto-React ───────────────────────────────────────────────────
     const NEWSLETTERS = [
         '120363421104812135@newsletter',
