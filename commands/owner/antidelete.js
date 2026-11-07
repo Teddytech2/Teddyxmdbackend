@@ -408,7 +408,7 @@ module.exports = {
   category: 'owner',
   description: 'Recover deleted messages',
   usage: USAGE,
-  adminOnly: true,
+  ownerOnly: true,
 
   storeMessage,
   handleDelete,
@@ -426,11 +426,9 @@ module.exports = {
 
     if (sub === 'on') {
       const current = getMode();
-      const mode = current === 'private' ? 'private' : 'chat';
+      const mode = 'private';
       database.setAntideleteMode(mode);
-      return reply(mode === 'private'
-        ? '🗑️ Anti-Delete is *ON* (Private). Deleted msgs go to owner DM.'
-        : '🗑️ Anti-Delete is *ON* (Chat). Deleted msgs show in each chat.');
+      return reply('🗑️ Anti-Delete is *ON* (Private). Deleted msgs go to owner DM.');
     }
 
     if (sub === 'chat') {

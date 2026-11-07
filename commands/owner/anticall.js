@@ -21,7 +21,7 @@ module.exports = {
         `• \`.anticall off\` - Disable anti-call\n` +
         `• \`.anticall decline\` - Decline calls only\n` +
         `• \`.anticall block\` - Decline & block caller\n` +
-        `• \`.anticall on\` - Enable (same as block)\n\n` +
+        `• \`.anticall on\` - Enable (decline only)\n\n` +
         `_Type \`.anticallmsg\` for all message options._`
       );
     }
@@ -33,7 +33,7 @@ module.exports = {
     }
 
     const enabled = option !== 'off';
-    const action = option === 'decline' ? 'decline' : 'block';
+    const action = option === 'block' ? 'block' : 'decline';
 
     try {
       // Stored in SQLite. This used to rewrite config.js on disk, which the
@@ -59,8 +59,8 @@ module.exports = {
         },
         on: {
           emoji: '🚫',
-          title: 'Anti-Call: *Block Mode* (Enabled)',
-          desc: 'Incoming calls will be declined and caller blocked.\n_Use `.anticallmsg` to manage messages._'
+          title: 'Anti-Call: *Decline Mode* (Enabled)',
+          desc: 'Incoming calls will be automatically declined. The caller will not be blocked.\n_Use `.anticallmsg` to manage messages._'
         }
       };
 

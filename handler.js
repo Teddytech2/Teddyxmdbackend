@@ -2350,7 +2350,7 @@ const initializeAntiCall = (sock) => {
       const settings = database.getDefaultGroupSettings();
       if (!settings.anticall) return;
 
-      const action = settings.anticallAction || 'block';
+      const action = settings.anticallAction || 'decline';
       const callsList = Array.isArray(calls) ? calls : [calls];
       const defaultMessage = database.ANTICALL_PRESETS?.[0]?.message
         || "Sorry, I don't accept WhatsApp calls. Please send a message.";

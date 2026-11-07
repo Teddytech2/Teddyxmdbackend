@@ -8,8 +8,8 @@ const processedMessages = new Set();
 const tiktokPattern = /https?:\/\/(?:(?:www|vm|vt|m)\.)?tiktok\.com\/\S+/i;
 
 module.exports = {
-    name: 'tiktok2',
-    aliases: ['tt2', 'ttdl2', 'tiktokdl2'],
+    name: 'tiktok',
+    aliases: ['tt', 'ttdl', 'tiktokdl'],
     category: 'media',
     description: 'Download TikTok videos without watermark',
     usage: '.tiktok <TikTok URL>',
