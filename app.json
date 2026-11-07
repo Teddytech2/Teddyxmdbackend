@@ -25,8 +25,8 @@
   },
   "env": {
     "SESSION_ID": {
-      "description": "Official session mechanism: pair at https://burning-lorena-eminentbo-ede53cc1.koyeb.app/pair and paste the TEDDY-XMD~<handle> it gives you. This is the only session mechanism.",
-      "required": false,
+      "description": "TEDDY-XMD~<handle>  use session like this.",
+      "required": true,
       "value": ""
     }
   }
