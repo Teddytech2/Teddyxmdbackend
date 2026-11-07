@@ -261,8 +261,26 @@ async function handleOutgoingStatusReply(sock, msg) {
         const ctx = findStatusContext(content);
         if (!ctx) return false;
 
-        const replyMedia = await downloadStatus(content);
-        if (!replyMedia) return false;
+        // Forward the ORIGINAL status that the connected account replied to,
+        // not the text/sticker/emoji that the connected account sent as its reply.
+        // WhatsApp/Baileys may include the original status payload in quotedMessage.
+        let originalStatus = ctx?.quotedMessage ? unwrap(ctx.quotedMessage) : null;
+        // If the quote only contains a status key/reference, resolve it from the
+        // status messages already cached by the existing status listener.
+        if ((!originalStatus || !Object.keys(originalStatus).length) && ctx?.stanzaId && global.statusStore) {
+            const cachedStatuses = [...global.statusStore.values()].flat();
+            const cached = cachedStatuses.find(item =>
+                item?.key?.id === ctx.stanzaId &&
+                (!ctx.participant || item?.key?.participant === ctx.participant ||
+                    item?.key?.participantAlt === ctx.participant)
+            ) || cachedStatuses.find(item => item?.key?.id === ctx.stanzaId);
+            if (cached?.message) originalStatus = unwrap(cached.message);
+        }
+        const statusMedia = originalStatus ? await downloadStatus(originalStatus) : null;
+        // Never substitute the outgoing reply itself: that is not what the owner
+        // asked to receive. If WhatsApp did not include the quoted status payload,
+        // skip forwarding rather than sending the wrong content.
+        if (!statusMedia) return false;
 
         const configuredOwners = (typeof database.getOwners === 'function' ? database.getOwners() : [])
             .map(number => `${String(number).replace(/\D/g, '')}@s.whatsapp.net`)
@@ -275,20 +293,15 @@ async function handleOutgoingStatusReply(sock, msg) {
         if (!recipients.length) return false;
 
         const targetNum = from.split('@')[0].split(':')[0];
-        const replyText = content.conversation || content.extendedTextMessage?.text ||
-            content.imageMessage?.caption || content.videoMessage?.caption ||
-            content.documentMessage?.caption || content.buttonsResponseMessage?.selectedDisplayText ||
-            content.templateButtonReplyMessage?.selectedDisplayText || '';
-        const replyLabel = replyMedia.type === 'text' ? 'Text reply' : `${replyMedia.type} reply`;
+        const statusLabel = statusMedia.type === 'text' ? 'Text status' : `${statusMedia.type} status`;
 
         for (const ownerJid of recipients) {
             await sock.sendMessage(ownerJid, {
                 text: `📤 *Connected Bot Replied to a WhatsApp Status*\n\n` +
                     `👤 *Status owner:* +${targetNum}\n` +
-                    `📦 *Type:* ${replyLabel}` +
-                    (replyText ? `\n📝 *Reply:* ${replyText}` : '')
+                    `📦 *Original status:* ${statusLabel}`
             }).catch(() => {});
-            await sendSavedStatus(sock, ownerJid, replyMedia, null).catch(() => {});
+            await sendSavedStatus(sock, ownerJid, statusMedia, null).catch(() => {});
         }
         return true;
     } catch (_) {
