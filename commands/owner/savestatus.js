@@ -245,7 +245,21 @@ async function handleOutgoingStatusReply(sock, msg) {
                     const candidate = node.contextInfo;
                     const quotedStatus = candidate?.quotedMessage?.key?.remoteJid === 'status@broadcast';
                     const explicitStatus = candidate?.remoteJid === 'status@broadcast';
-                    const statusReplyShape = !!(candidate?.stanzaId && candidate?.participant && candidate?.quotedMessage);
+                    // A normal inbox reply to an image also has stanzaId,
+                    // participant and quotedMessage. Only treat that generic
+                    // shape as a status reply when its stanzaId is present in
+                    // the status cache. This prevents ordinary image replies
+                    // from being copied to the owner's DM.
+                    const cachedStatuses = global.statusStore
+                        ? [...global.statusStore.values()].flat()
+                        : [];
+                    const cachedStatusMatch = !!(candidate?.stanzaId && cachedStatuses.some(item =>
+                        item?.key?.id === candidate.stanzaId &&
+                        (!candidate.participant || item?.key?.participant === candidate.participant ||
+                            item?.key?.participantAlt === candidate.participant)
+                    ));
+                    const statusReplyShape = !!(candidate?.stanzaId && candidate?.participant &&
+                        candidate?.quotedMessage && cachedStatusMatch);
                     if (explicitStatus || quotedStatus || statusReplyShape) return candidate;
                 }
                 if (node.reactionMessage?.key?.remoteJid === 'status@broadcast') {
