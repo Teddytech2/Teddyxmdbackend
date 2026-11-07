@@ -1133,29 +1133,6 @@ async function initializeDatabase() {
   db.exec(SCHEMA_SQL);
   stmts = createPreparedStatements();
 
-  // Bring remote persistence online before the bot starts reading settings.
-  // Existing local rows are preserved; PostgreSQL fills only missing rows.
-  // Then the durable local configuration is backfilled so a first deployment
-  // seeds the remote database instead of waiting for the next settings change.
-  try {
-    const pgStatus = await pgAdapter.init();
-    if (pgStatus?.available) {
-      const restored = await restoreFromPostgres();
-      console.log(`[DB] PostgreSQL startup restore: ${restored?.restored || 0} missing rows restored`);
-      const seeded = backfillRemote();
-      console.log(`[DB] PostgreSQL startup sync queued: ${seeded?.pushed || 0} durable settings`);
-      await restoreRemoteAuthState();
-    } else if (pgStatus?.configured) {
-      console.warn(`[DB] PostgreSQL is configured but unavailable: ${pgStatus.lastError || 'connection failed'}`);
-      console.warn('[DB] Local SQLite remains active; remote persistence will retry when available.');
-    } else {
-      console.warn('[DB] PostgreSQL is not configured. Settings are local to this host and may be lost on ephemeral hosting.');
-    }
-  } catch (error) {
-    console.warn(`[DB] PostgreSQL startup initialization failed: ${error.message}`);
-    console.warn('[DB] Continuing with local SQLite; no settings were intentionally cleared.');
-  }
-
   backupInterval = setInterval(() => {
     if (!shuttingDown && dirtyRevision > backedUpRevision) {
       void createAtomicBackup('interval');
