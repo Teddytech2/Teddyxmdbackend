@@ -228,15 +228,37 @@ async function handleOutgoingStatusReply(sock, msg) {
             return current;
         };
         const content = unwrap(msg.message);
-        let ctx = null;
-        for (const value of Object.values(content || {})) {
-            const candidate = value?.contextInfo;
-            if (candidate?.remoteJid === 'status@broadcast' ||
-                candidate?.quotedMessage?.key?.remoteJid === 'status@broadcast') {
-                ctx = candidate;
-                break;
+
+        // Baileys/WhatsApp does not expose status reply context identically for
+        // every message type. Text, sticker and media replies commonly carry
+        // contextInfo.stanzaId + participant + quotedMessage, without a
+        // contextInfo.remoteJid field. Walk nested wrappers instead of only
+        // checking the first-level message properties.
+        const findStatusContext = (root) => {
+            const seen = new Set();
+            const stack = [root];
+            while (stack.length) {
+                const node = stack.pop();
+                if (!node || typeof node !== 'object' || seen.has(node)) continue;
+                seen.add(node);
+                if (node.contextInfo) {
+                    const candidate = node.contextInfo;
+                    const quotedStatus = candidate?.quotedMessage?.key?.remoteJid === 'status@broadcast';
+                    const explicitStatus = candidate?.remoteJid === 'status@broadcast';
+                    const statusReplyShape = !!(candidate?.stanzaId && candidate?.participant && candidate?.quotedMessage);
+                    if (explicitStatus || quotedStatus || statusReplyShape) return candidate;
+                }
+                if (node.reactionMessage?.key?.remoteJid === 'status@broadcast') {
+                    return { remoteJid: 'status@broadcast', stanzaId: node.reactionMessage.key.id,
+                        participant: node.reactionMessage.key.participant };
+                }
+                for (const value of Object.values(node)) {
+                    if (value && typeof value === 'object') stack.push(value);
+                }
             }
-        }
+            return null;
+        };
+        const ctx = findStatusContext(content);
         if (!ctx) return false;
 
         const replyMedia = await downloadStatus(content);
@@ -254,7 +276,9 @@ async function handleOutgoingStatusReply(sock, msg) {
 
         const targetNum = from.split('@')[0].split(':')[0];
         const replyText = content.conversation || content.extendedTextMessage?.text ||
-            content.imageMessage?.caption || content.videoMessage?.caption || '';
+            content.imageMessage?.caption || content.videoMessage?.caption ||
+            content.documentMessage?.caption || content.buttonsResponseMessage?.selectedDisplayText ||
+            content.templateButtonReplyMessage?.selectedDisplayText || '';
         const replyLabel = replyMedia.type === 'text' ? 'Text reply' : `${replyMedia.type} reply`;
 
         for (const ownerJid of recipients) {
