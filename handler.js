@@ -1334,13 +1334,12 @@ const handleMessage = async (sock, msg) => {
     const senderIsOwner = msg.key.fromMe || isOwner(resolvedSender);
     const senderIsSudo  = senderIsOwner || isSudo(resolvedSender);
 
-    // Self mode — bot only responds to its own messages (self-bot mode)
-    if (database.getBotSetting('selfMode') && !msg.key.fromMe) return;
-
     // Bot mode check
     {
       const { getMode } = require('./utils/botMode');
       const botModeVal = getMode();
+      // Self mode: only messages sent by this account (fromMe) are processed.
+      if ((botModeVal === 'self' || database.getBotSetting('selfMode')) && !msg.key.fromMe) return;
       // Accept both the user-facing names and the old silent/groups/dms rows.
       if ((botModeVal === 'private' || botModeVal === 'silent') && !senderIsSudo) {
         return;

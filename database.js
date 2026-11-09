@@ -1460,6 +1460,19 @@ const VERSION = require('./package.json').version;
 // load to build a path, before SQLite is open, so it must be a plain constant.
 const SESSION_NAME = '';
 
+// Deployment configuration (Heroku app.json / environment variables) supplies
+// defaults only. Explicit SQLite settings written by owner commands always win.
+const envBool = (name, fallback) => {
+  const raw = process.env[name];
+  if (raw == null || raw === '') return fallback;
+  return /^(1|true|yes|on)$/i.test(String(raw).trim());
+};
+const envString = (name, fallback) => process.env[name] == null || process.env[name] === '' ? fallback : String(process.env[name]);
+const envChoice = (name, allowed, fallback) => {
+  const value = envString(name, fallback).trim().toLowerCase();
+  return allowed.includes(value) ? value : fallback;
+};
+
 const BOT_SETTINGS_DEFAULTS = {
   // Empty by design. A fresh install has no owner: whoever pairs the bot is
   // recognised through msg.key.fromMe and can claim it with .setownernumber.
@@ -1472,19 +1485,19 @@ const BOT_SETTINGS_DEFAULTS = {
   // must never be replaced silently.
   ownerSource: null,
 
-  botName: 'TEDDY-XMD-ULTRA',
-  prefix: '.',
-  autoRead: true,
-  autoReact: false,
-  mode: 'public',
+  botName: envString('BOT_NAME', 'TEDDY-XMD-ULTRA'),
+  prefix: envString('PREFIX', '.'),
+  autoRead: envBool('AUTOREAD', true),
+  autoReact: envBool('AUTOREACT', false),
+  mode: envChoice('BOT_MODE', ['public', 'private', 'group', 'pm', 'self'], envChoice('MODE', ['public', 'private', 'group', 'pm', 'self'], 'public')),
   loginMethod: null,
 
   // Unified anti-feature configuration lives in SQLite only. These defaults
   // are returned for a fresh database; config.js and data/*.json are never
   // consulted as fallbacks for these values.
-  antideleteMode: 'off',
-  antieditMode: 'off',
-  antideleteStatus: false,
+  antideleteMode: envChoice('ANTIDELETE_MODE', ['off', 'chat', 'private'], 'off'),
+  antieditMode: envChoice('ANTIEDIT_MODE', ['off', 'chat', 'private'], 'off'),
+  antideleteStatus: envBool('ANTIDELETE_STATUS', false),
 
   // Menu presentation settings are SQLite-backed. The menu renderer and owner
   // commands do not use a file-based fallback.
@@ -1504,19 +1517,19 @@ const BOT_SETTINGS_DEFAULTS = {
   // returned undefined and every call site carried its own inline fallback.
   // The values below are exactly those fallbacks, so behaviour is unchanged —
   // they are now declared in one place instead of duplicated across files.
-  alwaysOnline: false,
-  fontStyle: 'normal',
-  readReceipts: 'off',
-  autoReadMode: 'off',
+  alwaysOnline: envBool('ALWAYS_ONLINE', false),
+  fontStyle: envString('FONT_STYLE', 'normal'),
+  readReceipts: envChoice('READ_RECEIPTS', ['off', 'all', 'read'], 'off'),
+  autoReadMode: envChoice('AUTOREAD_MODE', ['off', 'all', 'private', 'group'], 'off'),
 
   antibug: false,
   antibugAction: 'delete',
 
-  autoStatusView: false,
-  autoStatusReact: false,
-  autoStatusEmoji: '💙',
-  autoStatusEmojiPool: [],
-  autoStatusRandomEmoji: false,
+  autoStatusView: envBool('AUTOSTATUSVIEW', false),
+  autoStatusReact: envBool('AUTOREACTSTATUS', false),
+  autoStatusEmoji: envString('AUTOREACTSTATUS_EMOJI', '💙').split(/\s+/)[0] || '💙',
+  autoStatusEmojiPool: envString('AUTOREACTSTATUS_EMOJI', '💙').split(/\s+/).filter(Boolean),
+  autoStatusRandomEmoji: envBool('AUTOREACTSTATUS_RANDOM', false),
 
   // normaliseAutoDownloadStatusSettings() turns {} into the full shape
   autoDownloadStatus: {},
@@ -1542,17 +1555,17 @@ const BOT_SETTINGS_DEFAULTS = {
   // deployment display the Teddy team's name. menu.js falls back to
   // "Bot Owner" when this is empty. Set with .setownername.
   ownerName: [],
-  timezone: "Africa/Nairobi",
+  timezone: envString('TIMEZONE', 'Africa/Nairobi'),
   maxWarnings: 3,
   packname: "TEDDY-XMD-ULTRA",
   author: "TEDDY-XMD-ULTRA",
   stickerAuthor: "TEDDY-XMD-ULTRA",
-  selfMode: false,
-  autoBio: false,
-  autoSticker: false,
-  autoTyping: false,
-  autoRecording: false,
-  autoRecordType: false,
+  selfMode: envBool('SELF_MODE', false),
+  autoBio: envBool('AUTO_BIO', false),
+  autoSticker: envBool('AUTO_STICKER', false),
+  autoTyping: envBool('AUTO_TYPING', false),
+  autoRecording: envBool('AUTO_RECORDING', false),
+  autoRecordType: envBool('AUTO_RECORDTYPE', false),
   autoReactMode: "bot",
   newsletterJid: "",
 };
@@ -1822,12 +1835,13 @@ const setOwners = (owners, source = 'command') => {
   return true;
 };
 // User-facing bot modes. Older SQLite rows may still store silent/groups/dms.
-const VALID_BOT_MODES = ['public', 'private', 'group', 'pm'];
+const VALID_BOT_MODES = ['public', 'private', 'group', 'pm', 'self'];
 const BOT_MODE_ALIASES = Object.freeze({
   public: 'public',
   private: 'private',
   group: 'group',
   pm: 'pm',
+  self: 'self',
   silent: 'private',
   restricted: 'private',
   groups: 'group',

@@ -1,11 +1,12 @@
 /**
  * Bot Mode Settings — backed by database/botmode.json
- * Modes: 'public' | 'private' | 'group' | 'pm'
+ * Modes: 'public' | 'private' | 'group' | 'pm' | 'self'
  *
  *   public  — everyone can use commands in groups and DMs
  *   private — only owner/sudo can use commands anywhere
  *   group   — commands only work in groups (not in DMs)
  *   pm      — commands only work in DMs / private chats (not in groups)
+ *   self    — bot responds only to its own messages
  */
 const db = require('../database');
 
@@ -25,6 +26,7 @@ function getModeLabel() {
     private: '🔒 Private',
     group:   '👥 Group Only',
     pm:      '💬 PM Only',
+    self:    '🤖 Self Mode',
     silent:  '🔒 Private',
     groups:  '👥 Group Only',
     dms:     '💬 PM Only',

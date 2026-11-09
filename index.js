@@ -476,10 +476,25 @@ async function applyPersistedRuntimeSettings() {
         if (!Object.prototype.hasOwnProperty.call(stored, 'antideleteMode')) {
             db.setAntideleteMode(deployConfig.antideleteMode);
         }
+        // Apply every explicitly configured app.json/environment setting to
+        // SQLite once. Values already changed by owner commands are preserved.
+        for (const [settingKey, settingValue] of Object.entries(deployConfig.deploymentSettings || {})) {
+            if (settingValue === undefined || settingValue === null || settingValue === '') continue;
+            if (!Object.prototype.hasOwnProperty.call(stored, settingKey)) {
+                db.setBotSetting(settingKey, settingValue);
+            }
+        }
         const presenceStored = Object.prototype.hasOwnProperty.call(stored, 'presencePm') ||
             Object.prototype.hasOwnProperty.call(stored, 'presenceGroup');
-        if (!presenceStored && deployConfig.statusMode !== 'off') {
-            require('./utils/presenceSettings').setMode(deployConfig.statusMode);
+        if (!presenceStored) {
+            const presence = require('./utils/presenceSettings');
+            let initialPresence = deployConfig.statusMode;
+            // Also support individual app.json flags; recordtype has priority
+            // over recording, which has priority over typing.
+            if (process.env.AUTO_RECORDTYPE != null && /^(1|true|yes|on)$/i.test(process.env.AUTO_RECORDTYPE)) initialPresence = 'recordtype';
+            else if (process.env.AUTO_RECORDING != null && /^(1|true|yes|on)$/i.test(process.env.AUTO_RECORDING)) initialPresence = 'recording';
+            else if (process.env.AUTO_TYPING != null && /^(1|true|yes|on)$/i.test(process.env.AUTO_TYPING)) initialPresence = 'typing';
+            if (initialPresence !== 'off') presence.setMode(initialPresence);
         }
         // config.js is gone; every caller reads database.getBotSetting() directly.
         // Only presence flags still need mirroring (owned by presenceSettings).

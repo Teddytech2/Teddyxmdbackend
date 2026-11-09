@@ -57,7 +57,6 @@ module.exports = {
             const autoReact      = database.getBotSetting('autoReact')      || false;
             const autoReactMode  = database.getBotSetting('autoReactMode')  || 'bot';
             const alwaysOnline   = database.getBotSetting('alwaysOnline')   || false;
-            const selfMode       = database.getBotSetting('selfMode')       || false;
             const autoBio          = database.getBotSetting('autoBio') || false;
             const autoDownloadStatus = database.getAutoDownloadStatusSettings();
             const autoDownload     = autoDownloadStatus.enabled;
@@ -105,7 +104,6 @@ module.exports = {
                 `🔹 *timezone* : ${database.getTimeZone()}\n` +
                 `🔹 *botname* : ${database.getBotSetting('botName')}\n` +
                 `🔹 *botmode* : ${botMode}\n` +
-                `🔹 *selfmode* : ${flag(selfMode)}\n` +
                 `🔹 *alwaysonline* : ${flag(alwaysOnline)}\n` +
                 `🔹 *presence (pm)*     : ${_presLabel(_pres.pm)}\n` +
                 `🔹 *presence (group)*  : ${_presLabel(_pres.group)}\n` +
