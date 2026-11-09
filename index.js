@@ -27,6 +27,7 @@ process.on('warning', (warning) => {
 });
 // --- Environment Setup ---
 require('dotenv').config();
+const deployConfig = require('./config');
 
 // TEDDY-XMD-ULTRA branding defaults.
 global.TEDDY_BRAND = Object.freeze({ name: 'TEDDY-XMD-ULTRA', developer: 'Teddy', developerNumber: '254799963583', newsletterJid: '120363421104812135@newsletter', imageUrl: 'https://url.bmbxmd.workers.dev/1JNK9.jpg' });
@@ -466,6 +467,20 @@ async function applyPersistedRuntimeSettings() {
     try {
         await teddyDatabase.ready;
         const db = teddyDatabase;
+        // Seed deployment defaults only when the corresponding SQLite setting
+        // has never been explicitly saved. Commands remain authoritative later.
+        const stored = db.getStoredBotSettings();
+        if (!Object.prototype.hasOwnProperty.call(stored, 'mode')) {
+            db.setBotMode(deployConfig.botMode);
+        }
+        if (!Object.prototype.hasOwnProperty.call(stored, 'antideleteMode')) {
+            db.setAntideleteMode(deployConfig.antideleteMode);
+        }
+        const presenceStored = Object.prototype.hasOwnProperty.call(stored, 'presencePm') ||
+            Object.prototype.hasOwnProperty.call(stored, 'presenceGroup');
+        if (!presenceStored && deployConfig.statusMode !== 'off') {
+            require('./utils/presenceSettings').setMode(deployConfig.statusMode);
+        }
         // config.js is gone; every caller reads database.getBotSetting() directly.
         // Only presence flags still need mirroring (owned by presenceSettings).
         try {

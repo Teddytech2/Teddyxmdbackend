@@ -1402,6 +1402,15 @@ const DEFAULT_GROUP_SETTINGS = {
   "antigifAction": "delete"
 };
 
+// Deployment default for newly-seen groups only. Existing per-group SQLite
+// settings are preserved and can be changed with .antilink delete|kick|off.
+try {
+  const deployment = require('./config');
+  DEFAULT_GROUP_SETTINGS.antilink = deployment.antilinkAction !== 'off';
+  DEFAULT_GROUP_SETTINGS.antilinkAction =
+    deployment.antilinkAction === 'kick' ? 'kick' : 'delete';
+} catch (_) {}
+
 const ANTICALL_PRESETS = [
   {
     "id": 1,
