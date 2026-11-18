@@ -1,8 +1,0 @@
-services:
-  - type: worker
-    name: teddy-xmd
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    plan: starter
-    autoDeploy: true

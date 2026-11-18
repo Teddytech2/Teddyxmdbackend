@@ -185,9 +185,37 @@ function buildMenuText(categories, extra, totalCount, speed) {
 }
 
 function getThumbnail() {
-  // Shared resolver keeps .menu, .alive and .uptime on the identical
-  // SQLite/custom/bundled menu-image source.
-  return require('../../utils/statusCard').getMenuImageBuffer();
+  // 1) Custom image stored in SQLite via .setmenuimage (source of truth)
+  try {
+    const db = require('../../database');
+    const menuImage = db.getMenuImageSettings ? db.getMenuImageSettings() : null;
+    if (menuImage && menuImage.custom && menuImage.imageData) {
+      let b64 = String(menuImage.imageData).trim();
+      if (b64.startsWith('data:')) b64 = b64.slice(b64.indexOf(',') + 1);
+      const buf = Buffer.from(b64, 'base64');
+      if (buf && buf.length) return buf;
+    }
+  } catch (_) { /* fall through to defaults */ }
+
+  // 2) Legacy file-based custom image
+  const customPath = path.join(__dirname, '../../data/custom_menu.jpg');
+  if (fs.existsSync(customPath)) {
+    try { return fs.readFileSync(customPath); } catch {}
+  }
+
+  // 3) Bundled default images
+  const defaults = [
+    path.join(__dirname, '../../assets/menu1.jpg'),
+    path.join(__dirname, '../../utils/bot_image.jpg'),
+    path.join(__dirname, '../../utils/menu2.jpg'),
+    path.join(__dirname, '../../utils/menu3.jpg'),
+    path.join(__dirname, '../../utils/menu4.jpg'),
+    path.join(__dirname, '../../utils/menu5.jpg'),
+  ];
+  const available = defaults.filter(p => { try { return fs.existsSync(p); } catch { return false; } });
+  if (!available.length) return null;
+  const picked = available[Math.floor(Math.random() * available.length)];
+  try { return fs.readFileSync(picked); } catch { return null; }
 }
 
 module.exports = {

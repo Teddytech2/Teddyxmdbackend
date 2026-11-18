@@ -1,26 +1,35 @@
-'use strict';
-const { performance } = require('perf_hooks');
-const { sendDashboard } = require('../../utils/cyberDashboard');
+/* by supreme */
+const { applyFont } = require('../../utils/fontConverter');
+const database = require('../../database');
 
 module.exports = {
-  name: 'ping', aliases: ['pong', 'p'], category: 'general',
-  description: 'Check bot response latency and system status', usage: '.ping', ownerOnly: false,
-  async execute(sock, msg, args, extra) {
-    const started = performance.now();
-    const receivedAt = Number(msg?.messageTimestamp) ? Number(msg.messageTimestamp) * 1000 : Date.now();
-    const messageDelay = Math.max(0, Date.now() - receivedAt);
-    // Incoming-message age, not a claimed end-to-end network round trip.
-    const latencyValue = `${messageDelay} ms`;
-    const detail = `Command processed in ${Math.max(0, performance.now() - started).toFixed(2)} ms`;
-    try {
-      await sendDashboard(sock, extra.from, {
-        type: 'ping', title: 'PING RESPONSE', detail,
-        status: global.botState === 'connected' ? 'ONLINE' : String(global.botState || 'UNKNOWN').toUpperCase(),
-        extraStats: { latencyValue },
-      }, msg);
-    } catch (error) {
-      console.error('[ping dashboard]', error?.stack || error);
-      await extra.reply('❌ Ping card could not be sent. Check that Chromium/Puppeteer is installed and available on your host.');
+    name: 'ping',
+    aliases: ['pong', 'p'],
+    category: 'general',
+    description: 'Check bot response speed with high precision (edits message)',
+    usage: '.ping',
+
+    async execute(sock, msg, args, extra) {
+        try {
+            const chatId = extra.from;
+            const botName = database.getBotSetting('botName') || 'Teddy-Ultra';
+
+            const start = performance.now();
+            const sentMsg = await sock.sendMessage(chatId, {
+                text: applyFont('🔸 pong!...')
+            }, { quoted: msg });
+
+            const ping = (performance.now() - start).toFixed(3);
+            const response = applyFont(`🔹 ${botName} Speed: ${ping} ms`);
+
+            await sock.sendMessage(chatId, {
+                text: response,
+                edit: sentMsg.key
+            }, { quoted: msg });
+
+        } catch (error) {
+            console.error('[ping]', error.message);
+            await extra.reply('❌ Failed to measure speed.');
+        }
     }
-  },
 };

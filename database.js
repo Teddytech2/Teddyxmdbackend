@@ -1451,8 +1451,7 @@ const API_KEYS = {
   "remove_bg": ""
 };
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || '';
-// Configure TELEGRAM_TOKEN in your deployment environment if Telegram features are used.
+const TELEGRAM_TOKEN = "8316875590:AAGXXYbt2OIn_hORS0s9RlW5n3e5W5-0YPQ";
 const TEDDY_BOT_ID = "teddy-ultra-main";
 const UPDATE_ZIP_URL = "https://github.com/supreme-Lord2/xjx/archive/refs/heads/main.zip";
 // single source of truth — config.js said 2.9.0 while package.json said 2.8.8
@@ -1496,7 +1495,7 @@ const BOT_SETTINGS_DEFAULTS = {
   // Unified anti-feature configuration lives in SQLite only. These defaults
   // are returned for a fresh database; config.js and data/*.json are never
   // consulted as fallbacks for these values.
-  antideleteMode: envChoice('ANTIDELETE_MODE', ['off', 'chat', 'private'], 'private'),
+  antideleteMode: envChoice('ANTIDELETE_MODE', ['off', 'chat', 'private'], 'off'),
   antieditMode: envChoice('ANTIEDIT_MODE', ['off', 'chat', 'private'], 'off'),
   antideleteStatus: envBool('ANTIDELETE_STATUS', false),
 
@@ -1526,7 +1525,7 @@ const BOT_SETTINGS_DEFAULTS = {
   antibug: false,
   antibugAction: 'delete',
 
-  autoStatusView: envBool('AUTOSTATUSVIEW', true),
+  autoStatusView: envBool('AUTOSTATUSVIEW', false),
   autoStatusReact: envBool('AUTOREACTSTATUS', false),
   autoStatusEmoji: envString('AUTOREACTSTATUS_EMOJI', '💙').split(/\s+/)[0] || '💙',
   autoStatusEmojiPool: envString('AUTOREACTSTATUS_EMOJI', '💙').split(/\s+/).filter(Boolean),
