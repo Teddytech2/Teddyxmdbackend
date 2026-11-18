@@ -958,7 +958,30 @@ while keys rebuild. Then: instant ⚡`
             outgoingText = `${welcomeText}${readmore}\n${warmUpText}`
         }
 
-        await sock.sendMessage(botJid, { text: outgoingText })
+        // Prefer the connected WhatsApp account's own profile picture for the
+        // connection banner. If privacy settings or the network prevent fetching
+        // it, keep the text-only notification reliable.
+        let connectedProfileImage = null
+        try {
+            if (typeof sock.profilePictureUrl === 'function') {
+                const profileUrl = await sock.profilePictureUrl(botJid, 'image')
+                if (profileUrl) {
+                    const response = await fetch(profileUrl)
+                    if (response.ok) {
+                        const imageBuffer = Buffer.from(await response.arrayBuffer())
+                        if (imageBuffer.length > 0) connectedProfileImage = imageBuffer
+                    }
+                }
+            }
+        } catch (profileError) {
+            log(`[ CONNECTED ] Could not fetch bot profile picture: ${profileError.message}`, 'yellow')
+        }
+
+        if (connectedProfileImage) {
+            await sock.sendMessage(botJid, { image: connectedProfileImage, caption: outgoingText })
+        } else {
+            await sock.sendMessage(botJid, { text: outgoingText })
+        }
 
         clearPersistedSessionErrorState()
         global.errorRetryCount = 0

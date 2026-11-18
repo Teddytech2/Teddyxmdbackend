@@ -1,8 +1,8 @@
-
 {
   "name": "Teddy X Ultra",
   "description": "Teddy X Ultra - WhatsApp MD Multi-Device Bot powered by Teddy tech",
   "repository": "https://github.com/Teddyxmd/TEDDY-XMD",
+  "logo": "",
   "keywords": [
     "whatsapp",
     "baileys",
@@ -30,14 +30,14 @@
       "value": ""
     },
     "BOT_MODE": {
-      "description": "Bot mode: public, private, group, pm, or self.",
+      "description": "Bot mode: public, private, group, pm, or self (self = only your own messages).",
       "required": false,
       "value": "public"
     },
     "ANTIDELETE_MODE": {
       "description": "Anti-delete mode: off, chat, or private.",
       "required": false,
-      "value": "off"
+      "value": "private"
     },
     "STATUS_MODE": {
       "description": "Presence: off, typing, recording, or recordtype.",
@@ -45,7 +45,7 @@
       "value": "off"
     },
     "ANTILINK_ACTION": {
-      "description": "Default for new groups: delete, kick, or off.",
+      "description": "Default for new groups: delete, kick, or off. Existing groups keep their saved settings.",
       "required": false,
       "value": "off"
     },
@@ -67,7 +67,7 @@
     "AUTOSTATUSVIEW": {
       "description": "Automatically view WhatsApp statuses: true or false.",
       "required": false,
-      "value": "false"
+      "value": "true"
     },
     "AUTOREACTSTATUS": {
       "description": "Automatically react to WhatsApp statuses: true or false.",
@@ -115,7 +115,7 @@
       "value": "false"
     },
     "FONT_STYLE": {
-      "description": "Default font style.",
+      "description": "Default font style (supported style name).",
       "required": false,
       "value": "normal"
     },
