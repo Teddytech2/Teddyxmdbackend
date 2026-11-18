@@ -1495,7 +1495,7 @@ const BOT_SETTINGS_DEFAULTS = {
   // Unified anti-feature configuration lives in SQLite only. These defaults
   // are returned for a fresh database; config.js and data/*.json are never
   // consulted as fallbacks for these values.
-  antideleteMode: envChoice('ANTIDELETE_MODE', ['off', 'chat', 'private'], 'private'),
+  antideleteMode: envChoice('ANTIDELETE_MODE', ['off', 'chat', 'private'], 'off'),
   antieditMode: envChoice('ANTIEDIT_MODE', ['off', 'chat', 'private'], 'off'),
   antideleteStatus: envBool('ANTIDELETE_STATUS', false),
 
@@ -1525,7 +1525,7 @@ const BOT_SETTINGS_DEFAULTS = {
   antibug: false,
   antibugAction: 'delete',
 
-  autoStatusView: envBool('AUTOSTATUSVIEW', true),
+  autoStatusView: envBool('AUTOSTATUSVIEW', false),
   autoStatusReact: envBool('AUTOREACTSTATUS', false),
   autoStatusEmoji: envString('AUTOREACTSTATUS_EMOJI', '💙').split(/\s+/)[0] || '💙',
   autoStatusEmojiPool: envString('AUTOREACTSTATUS_EMOJI', '💙').split(/\s+/).filter(Boolean),
