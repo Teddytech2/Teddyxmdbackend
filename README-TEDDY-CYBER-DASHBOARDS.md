@@ -31,3 +31,14 @@ The dashboard resolves the menu image through the same function used by `.menu`.
 
 ## Verification caveats
 Local syntax checks and tests can be run with `npm test`. WhatsApp delivery is not asserted unless run with a valid session and active connection. No credentials, auth/session files, `node_modules`, or cache folders should be included in the distributable archive.
+
+## Fix for Puppeteer / Chromium missing shared libraries
+
+If Chromium fails with an error such as `libatk-1.0.so.0: cannot open shared object file`, install the operating-system libraries required by Chromium. This is not an npm package issue.
+
+- **Heroku-style buildpacks:** the included `Aptfile` lists required packages. Ensure your deployment uses an apt buildpack that reads `Aptfile` (commonly the heroku-community/apt buildpack) before the Node.js buildpack. Rebuild/redeploy after adding it.
+- **Debian/Ubuntu VPS or container:** run `apt-get update` then install the packages listed in `Aptfile` (e.g. `xargs -a Aptfile apt-get install -y`).
+- **Other panels/containers:** install the equivalent Chromium runtime libraries in the base image/container, then restart the bot.
+
+The CONNECTED message is restored to its original text-only behavior. The cyber PNG renderer is used only by `.alive`, `.uptime`, and `.ping`.
+
