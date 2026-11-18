@@ -1,90 +1,112 @@
 'use strict';
 
 const os = require('os');
-const path = require('path');
-const fs = require('fs');
 const { getMenuImageBuffer, getSystemReport, formatDuration, formatBytes } = require('./statusCard');
 
 let puppeteer = null;
-try { puppeteer = require('puppeteer'); } catch (_) { /* optional until installed */ }
+try { puppeteer = require('puppeteer'); } catch (_) {}
 
 function escapeHtml(value) {
-  return String(value ?? 'Unavailable').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  return String(value ?? 'Unavailable').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
 }
 
 function getStats(report) {
   const total = os.totalmem();
   const free = os.freemem();
-  const used = total - free;
+  const memory = process.memoryUsage();
   const cpus = os.cpus() || [];
-  const load = os.loadavg?.() || [];
+  const uptimeSeconds = Math.floor(process.uptime());
   return {
+    uptime: (() => { const d = Math.floor(uptimeSeconds / 86400); const h = Math.floor((uptimeSeconds % 86400) / 3600); const m = Math.floor((uptimeSeconds % 3600) / 60); const s = uptimeSeconds % 60; return d ? `${d} d ${h} h ${m} min ${s} s` : `${h} h ${m} min ${s} s`; })(),
+    uptimeSeconds,
     cpu: report.cpu || 'Unavailable',
-    load: load.length ? load.map(n => n.toFixed(2)).join(' / ') : 'Unavailable',
-    systemRam: `${formatBytes(used)} / ${formatBytes(total)}`,
-    ramFree: formatBytes(free),
-    botRam: formatBytes(process.memoryUsage().rss),
-    botHeap: `${formatBytes(process.memoryUsage().heapUsed)} / ${formatBytes(process.memoryUsage().heapTotal)}`,
-    node: process.version,
-    platform: `${os.type()} ${os.release()} (${os.arch()})`,
-    hostPlatform: report.platform || 'Unavailable',
-    uptime: formatDuration(process.uptime()),
-    uptimeSeconds: Math.floor(process.uptime()),
-    startTime: new Date(Date.now() - process.uptime() * 1000).toLocaleString(),
-    time: report.timestamp || new Date().toLocaleString(),
     cpuCount: cpus.length || 'Unavailable',
+    runtime: `Node ${process.version}`,
+    platform: report.platform || 'Unavailable',
+    systemRam: `${formatBytes(total - free)} / ${formatBytes(total)}`,
+    botRam: formatBytes(memory.rss),
+    botHeap: `${formatBytes(memory.heapUsed)} / ${formatBytes(memory.heapTotal)}`,
+    time: report.timestamp || new Date().toLocaleString(),
+    startTime: new Date(Date.now() - uptimeSeconds * 1000).toLocaleString(),
   };
 }
 
-function dashboardHtml({ type = 'alive', title, status = 'ONLINE', detail = '', stats, menuImage }) {
-  const imageMime = menuImage ? (menuImage[0] === 0x89 && menuImage[1] === 0x50 ? 'image/png' : menuImage[0] === 0xff && menuImage[1] === 0xd8 ? 'image/jpeg' : menuImage[0] === 0x52 && menuImage[1] === 0x49 ? 'image/webp' : 'image/jpeg') : '';
-  const imageSrc = menuImage ? `data:${imageMime};base64,${menuImage.toString('base64')}` : '';
-  const metric = (label, value, icon, color = 'cyan') => `<div class="metric"><div class="mi ${color}">${icon}</div><div class="mtext"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div></div>`;
-  const rows = [
-    metric('Uptime', stats.uptime, '◷'), metric('CPU usage', stats.cpu, '⌁', 'purple'),
-    metric('System RAM used / total', stats.systemRam, '▣'), metric('System RAM free', stats.ramFree, '▣', 'green'),
-    metric('Bot process RSS', stats.botRam, '▤', 'purple'), metric('Bot heap', stats.botHeap, '▤'),
-    metric('Platform', stats.hostPlatform, '☁'), metric('Operating system', stats.platform, '⌘', 'green'),
-    metric('Node.js', stats.node, '⬡', 'purple'), metric('CPU cores / load avg', `${stats.cpuCount} / ${stats.load}`, '⌁'),
-  ].join('');
+function dashboardHtml({ type = 'alive', title, status = 'ONLINE', detail = '', stats, menuImage, extraStats = {} }) {
+  const mime = menuImage?.[0] === 0x89 && menuImage?.[1] === 0x50 ? 'image/png'
+    : menuImage?.[0] === 0xff && menuImage?.[1] === 0xd8 ? 'image/jpeg' : 'image/webp';
+  const imageSrc = menuImage?.length ? `data:${mime};base64,${menuImage.toString('base64')}` : '';
   const isPing = type === 'ping';
-  const uptime = type === 'uptime' ? `<div class="bigvalue">${escapeHtml(stats.uptime)}</div><div class="sub">DAYS · HOURS · MINUTES · SECONDS</div>` : '';
-  const extra = isPing ? `<div class="bigvalue">${escapeHtml(stats.pingValue || detail || 'Unavailable')}</div><div class="sub">${escapeHtml(stats.pingLabel || title || 'RESPONSE TIME')}</div><p class="detail">${escapeHtml(detail || '')}</p>` : `<div class="headline">${escapeHtml(title || (type === 'connected' ? 'CONNECTED' : 'BOT IS ALIVE'))}</div><p class="detail">${escapeHtml(detail || (type === 'connected' ? 'Connection established and ready' : 'Running smoothly and ready!'))}</p>`;
+  const latency = extraStats.latencyValue || (isPing ? '—' : '—');
+  const heading = title || (isPing ? 'PING RESPONSE' : type === 'uptime' ? 'BOT ACTIVE UPTIME' : 'BOT IS ALIVE');
+  const message = detail || (isPing ? 'Latency check completed' : 'The service is active and ready for commands');
+  const uptimeLabel = stats.uptime || 'Unavailable';
+  const currentTime = stats.time || new Date().toLocaleString();
+  const brand = escapeHtml(process.env.BOT_NAME || 'TEDDY-XMD');
+  const logo = imageSrc
+    ? `<img src="${imageSrc}" alt="Bot profile">`
+    : `<span class="robot">🤖</span>`;
+  const uptimePanel = `<section class="uptime"><div class="eyebrow">⏱ BOT ACTIVE UPTIME</div><div class="big">${escapeHtml(uptimeLabel)}</div><div class="sub">Time: ${escapeHtml(currentTime)}</div></section>`;
+  const metrics = isPing
+    ? `<div class="metrics"><section><small>LATENCY SPEED</small><strong>${escapeHtml(latency)}</strong></section><section><small>CPU CORES</small><strong>${escapeHtml(stats.cpuCount)} Core</strong></section></div>`
+    : `<div class="metrics"><section><small>${isPing ? 'LATENCY SPEED' : 'CPU USAGE'}</small><strong>${escapeHtml(isPing ? latency : stats.cpu)}</strong></section><section><small>CPU CORES</small><strong>${escapeHtml(stats.cpuCount)} Core</strong></section></div>`;
+  const runtime = `<section class="runtime"><small>RUNTIME ENGINE</small><strong>${escapeHtml(stats.runtime || process.version)}</strong></section>`;
+  const optional = type === 'uptime'
+    ? `<section class="runtime"><small>SYSTEM MEMORY</small><strong>${escapeHtml(stats.systemRam)}</strong></section>`
+    : '';
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-  *{box-sizing:border-box}body{margin:0;background:#03070d;color:#e8f5ff;font-family:Arial,Helvetica,sans-serif;padding:20px;background-image:radial-gradient(circle at 50% 10%,#062344 0,transparent 44%),linear-gradient(135deg,#03070d,#02040a)}.frame{width:100%;max-width:720px;margin:auto;border:2px solid #0799ff;border-radius:26px;padding:12px;box-shadow:0 0 18px #009dff90,inset 0 0 18px #009dff20}.hero{border:1px solid #18baff;border-radius:22px;min-height:245px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:linear-gradient(135deg,#04152a,#01050a)}.hero:before{content:'';position:absolute;inset:0;background:radial-gradient(circle,#006cff55,transparent 65%),repeating-linear-gradient(120deg,transparent 0 30px,#00aaff10 31px 32px}.logo{width:190px;height:190px;border:4px solid #00b9ff;border-radius:50%;box-shadow:0 0 20px #00aaff;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#020711;z-index:1;text-align:center;position:relative;overflow:hidden}.logo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;opacity:.45;border-radius:50%}.brand{font-size:27px;font-weight:900;letter-spacing:1px;text-shadow:0 0 9px #00aaff;z-index:2}.powered{font-size:12px;letter-spacing:3px;color:#74eaff;z-index:2}.status{margin:12px 0;border:1px solid #00baff;border-radius:24px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;background:#030c17;box-shadow:0 0 10px #00aaff45}.brandname{font-size:26px;font-weight:900;font-style:italic;text-shadow:0 0 9px #00baff}.pill{border:1px solid #00ff67;border-radius:24px;padding:7px 16px;color:#a6ffc5;background:#06220f;font-weight:bold;box-shadow:0 0 10px #00ff4050}.dot{display:inline-block;background:#00ff63;width:12px;height:12px;border-radius:50%;margin-right:7px;box-shadow:0 0 8px #00ff55}.headline{color:#36dfff;font-size:29px;font-weight:900;text-align:center;margin:12px 0;text-shadow:0 0 8px #009dff}.detail{text-align:center;font-size:17px;margin:5px 0 15px;color:#fff}.bigvalue{text-align:center;font-size:42px;font-weight:900;margin:15px 0 2px;text-shadow:0 0 13px #00aaff}.sub{text-align:center;color:#b5d7ee;font-size:12px;margin-bottom:15px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.metric{display:flex;gap:11px;align-items:center;padding:10px;border:1px solid #075d9b;border-radius:12px;background:linear-gradient(120deg,#03111e,#02070d);min-height:65px}.mi{font-size:22px;color:#20cfff;text-shadow:0 0 8px currentColor}.mi.purple{color:#b17bff}.mi.green{color:#44ff86}.mtext span{display:block;font-size:12px;color:#8fb6ce;margin-bottom:4px}.mtext strong{font-size:14px;overflow-wrap:anywhere}.time{margin-top:12px;text-align:center;color:#9dd7ef;font-size:13px;border-top:1px solid #0873b5;padding:12px}.footer{text-align:center;border:1px solid #078bcb;border-radius:20px;padding:13px;margin-top:12px;font-weight:bold;color:#23dfff;text-shadow:0 0 7px #009dff}.footer small{display:block;color:#d8e8f5;font-weight:normal;margin-top:4px}.missing{font-size:13px;color:#a4c8dd}
-  @media(max-width:520px){body{padding:8px}.frame{padding:7px}.brandname{font-size:20px}.pill{padding:5px 9px;font-size:12px}.grid{grid-template-columns:1fr}.headline{font-size:24px}.bigvalue{font-size:30px}.hero{min-height:180px}.logo{width:150px;height:150px}}
-  </style></head><body><div class="frame"><div class="hero"><div class="logo">${imageSrc ? `<img src="${imageSrc}" alt="Menu artwork">` : ''}<div class="brand">TEDDY-XMD</div><div class="powered">POWERED BY TEDDY</div></div></div><div class="status"><div class="brandname">TEDDY-XMD</div><div class="pill"><i class="dot"></i>${escapeHtml(status)}</div></div>${extra}${uptime}<div class="grid">${rows}</div><div class="time">▦ ${escapeHtml(stats.time)}${type === 'uptime' ? ` · Started: ${escapeHtml(stats.startTime)}` : ''}</div><div class="footer">♛ TEDDY-XMD SYSTEM ♛<small>Always Online · Always Ready</small></div></div></body></html>`;
+  *{box-sizing:border-box}body{margin:0;padding:20px;background:#030813;color:#eaf3ff;font-family:Arial,Helvetica,sans-serif}
+  .card{width:100%;max-width:840px;margin:auto;padding:26px;border:1px solid #153b65;border-radius:34px;background:linear-gradient(145deg,#071629,#050b18 65%,#081326);box-shadow:0 12px 45px #0009,inset 0 0 28px #0b4b8120}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px 20px;border-bottom:1px solid #1b2d47}
+  .identity{display:flex;align-items:center;gap:13px;font-size:28px;font-weight:800}.avatar{width:46px;height:46px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:#10243b;border:1px solid #1a4e7b}.avatar img{width:100%;height:100%;object-fit:cover}.robot{font-size:26px}
+  .pill{white-space:nowrap;padding:10px 18px;border-radius:24px;background:#092541;border:1px solid #145b91;color:#65caff;font-size:15px;font-weight:800;letter-spacing:.5px}.dot{display:inline-block;width:11px;height:11px;margin-right:8px;border-radius:50%;background:#24caff;box-shadow:0 0 12px #24caff}
+  .uptime{margin:24px 0 18px;padding:28px 15px;text-align:center;border:1px solid #164779;border-radius:28px;background:linear-gradient(120deg,#0a1e36,#09152b);box-shadow:inset 0 0 22px #0069aa16}
+  .eyebrow{font-size:16px;font-weight:800;letter-spacing:3px;color:#55baff}.big{font-size:42px;font-weight:900;margin:12px 0 5px;letter-spacing:.4px}.sub{font-size:16px;color:#a5b9d1}
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:16px}.metrics section,.runtime{padding:20px 22px;border:1px solid #1a2c45;border-radius:23px;background:linear-gradient(135deg,#0b1729,#08111f)}
+  small{display:block;color:#879bb6;font-size:14px;font-weight:800;letter-spacing:1.6px;margin-bottom:12px}.metrics strong,.runtime strong{font-size:23px;font-weight:800}
+  .runtime{margin-top:16px}.ready{margin-top:18px;padding:18px 22px;border:1px solid #174b43;border-radius:24px;background:#071b20;color:#60d994;font-size:17px;font-weight:700}.ready:before{content:'●';font-size:23px;color:#5ad987;margin-right:12px}
+  .bottom{display:flex;justify-content:space-between;gap:10px;margin-top:22px;padding-top:18px;border-top:1px solid #1b2d47;color:#8295ae;font-size:13px}.engine{color:#56c6ff;font-weight:800}
+  @media(max-width:560px){body{padding:8px}.card{padding:15px;border-radius:24px}.identity{font-size:21px}.avatar{width:38px;height:38px}.pill{font-size:11px;padding:8px 10px}.uptime{padding:22px 8px}.eyebrow{font-size:12px;letter-spacing:2px}.big{font-size:30px}.sub{font-size:12px}.metrics{gap:9px}.metrics section,.runtime{padding:15px 12px;border-radius:17px}small{font-size:10px;letter-spacing:1px}.metrics strong,.runtime strong{font-size:17px}.ready{font-size:13px;padding:14px}.bottom{font-size:10px}}
+  </style></head><body><main class="card"><header class="top"><div class="identity"><span class="avatar">${logo}</span><span>${brand}</span></div><div class="pill"><i class="dot"></i>${escapeHtml(status === 'ONLINE' ? 'SYSTEM ONLINE' : status)}</div></header>
+  ${uptimePanel}${metrics}${runtime}${optional}<div class="ready">${escapeHtml(message)}</div><footer class="bottom"><span>Updated just now</span><span class="engine">✦ TEDDY-XMD ENGINE</span></footer></main></body></html>`;
 }
 
 async function renderPng(html) {
-  if (!puppeteer) throw new Error('Puppeteer is not installed. Install project dependencies to enable HTML dashboard rendering.');
+  if (!puppeteer) throw new Error('Puppeteer is not installed. Install project dependencies to enable status cards.');
   let browser;
   try {
-    browser = await puppeteer.launch({ headless: true, ...(process.env.PUPPETEER_EXECUTABLE_PATH ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH } : {}), args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
-    const page = await browser.newPage({ viewport: { width: 720, height: 1280 }, deviceScaleFactor: 1 });
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-    const element = await page.$('.frame');
-    if (!element) throw new Error('Dashboard layout was not rendered');
+    browser = await puppeteer.launch({
+      headless: true,
+      ...(process.env.PUPPETEER_EXECUTABLE_PATH ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH } : {}),
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
+    const page = await browser.newPage({ viewport: { width: 840, height: 1100 }, deviceScaleFactor: 1 });
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+    const element = await page.$('.card');
+    if (!element) throw new Error('Status card did not render');
     return await element.screenshot({ type: 'png' });
-  } finally { if (browser) await browser.close().catch(() => {}); }
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
 }
 
 async function createDashboard({ type = 'alive', title, detail, status = 'ONLINE', extraStats = {} } = {}) {
   const report = await getSystemReport();
   const stats = getStats(report);
-  Object.assign(stats, extraStats);
   const menuImage = getMenuImageBuffer();
-  if (!menuImage?.length) throw new Error('Configured menu image could not be resolved; dashboard image rendering aborted.');
-  const html = dashboardHtml({ type, title, detail, status, stats, menuImage });
+  const html = dashboardHtml({ type, title, detail, status, stats, menuImage, extraStats });
   const png = await renderPng(html);
   return { png, stats, html };
 }
 
 async function sendDashboard(sock, chatId, options = {}, quoted) {
   const { png, stats } = await createDashboard(options);
-  await sock.sendMessage(chatId, { image: png, mimetype: 'image/png', caption: `TEDDY-XMD · ${options.title || options.type || 'STATUS'} · ${stats.uptime}` }, quoted ? { quoted } : undefined);
+  await sock.sendMessage(chatId, {
+    image: png,
+    mimetype: 'image/png',
+    caption: `${process.env.BOT_NAME || 'TEDDY-XMD'} · ${String(options.type || 'STATUS').toUpperCase()} · ${stats.uptime}`,
+  }, quoted ? { quoted } : undefined);
   return stats;
 }
 
