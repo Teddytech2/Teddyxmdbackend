@@ -909,62 +909,29 @@ function detectPlatform() {
 }
 
 async function sendWelcomeMessage(sock) {
-    if (global.isBotConnected) return
-    await delay(1500)
+    if (global.isBotConnected) return;
+    await delay(1500);
     try {
-        if (!sock.user || global.isBotConnected) return
-        global.isBotConnected = true
-        const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net'
-        const prefix = teddyDatabase.getBotSetting('prefix') === '' ? 'none' : (teddyDatabase.getBotSetting('prefix') || '.')
-        const platform = detectPlatform()
-        const ownerName = (Array.isArray(teddyDatabase.getOwnerNames()) ? teddyDatabase.getOwnerNames()[0] : teddyDatabase.getOwnerNames()) || 'Bot Owner'
-
-        const connectedNumber = String(sock.user.id || '').split(':')[0].split('@')[0]
-        const connectedTime = new Date().toLocaleString('en-GB', {
-            timeZone: 'Africa/Nairobi',
-            day: '2-digit', month: '2-digit', year: 'numeric',
-            hour: '2-digit', minute: '2-digit', second: '2-digit',
-            hour12: false
-        })
-
-        const welcomeText =
-`┏━━❐✧ *TEDDY-XMD ULTRA* ✧❐
-┃✦ *Status:* Online ✅
-┃✦ *Platform:* ${platform.replace(/^[^A-Za-z0-9]+/, '')}
-┃✦ *Number:* ${connectedNumber}
-┃✦ *Owner:* ${ownerName === 'Bot Owner' ? 'Teddy' : ownerName}
-┃✦ *Mode:* ${String(teddyDatabase.getBotMode?.() || teddyDatabase.getBotSetting('mode') || 'PUBLIC').toUpperCase()}
-┃✦ *Time:* ${connectedTime}
-┃✦ *Prefix:* ${prefix}
-┃✦ *Developer:* Teddy
-┃✦ *Contact:* +254799963583
-┗━━━━━━━━━━━━━`
-
-        // Fold warm-up info under the CONNECTED banner. Only a session-server restore warms up.
-        let outgoingText = welcomeText
-        if (global._credsOnlyWarmStart) {
-            global._credsOnlyWarmStart = false
-            log(`[ AUTH ] Baileys is rebuilding your WhatsApp auth keys… this can take a few minutes on a whale-sized account. Early replies may be slow.`, 'yellow')
-            // A long LRM run pushes the message past WhatsApp's fold threshold on every client.
-            const readmore = String.fromCharCode(8206).repeat(12000)
-            const warmUpText = applyFont(
-`🔥 WARMING UP…
-
-Session restored — bot is online ✅
-
-First replies may be slow for 2–3 minutes
-while keys rebuild. Then: instant ⚡`
-            )
-            outgoingText = `${welcomeText}${readmore}\n${warmUpText}`
+        if (!sock.user || global.isBotConnected) return;
+        global.isBotConnected = true;
+        const botJid = String(sock.user.id || '').split(':')[0].split('@')[0] + '@s.whatsapp.net';
+        // CONNECTED notification is rendered through the same cyber dashboard as
+        // .alive/.uptime/.ping. It deliberately contains no account number,
+        // owner details, credentials, or session data.
+        try {
+            const { sendDashboard } = require('./utils/cyberDashboard');
+            await sendDashboard(sock, botJid, {
+                type: 'connected', title: 'CONNECTED', detail: 'WhatsApp connection established · Bot is ready', status: 'ONLINE'
+            });
+        } catch (renderError) {
+            log(`CONNECTED dashboard unavailable: ${renderError.message}`, 'yellow');
+            await sock.sendMessage(botJid, { text: 'TEDDY-XMD CONNECTED — WhatsApp connection established and bot is ready.' });
         }
-
-        await sock.sendMessage(botJid, { text: outgoingText })
-
-        clearPersistedSessionErrorState()
-        global.errorRetryCount = 0
+        clearPersistedSessionErrorState();
+        global.errorRetryCount = 0;
     } catch (e) {
-        log(`Welcome message error: ${e.message}`, 'red', true)
-        global.isBotConnected = false
+        log(`Welcome message error: ${e.message}`, 'red', true);
+        global.isBotConnected = false;
     }
 }
 

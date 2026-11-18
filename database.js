@@ -1451,7 +1451,8 @@ const API_KEYS = {
   "remove_bg": ""
 };
 
-const TELEGRAM_TOKEN = "8316875590:AAGXXYbt2OIn_hORS0s9RlW5n3e5W5-0YPQ";
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || '';
+// Configure TELEGRAM_TOKEN in your deployment environment if Telegram features are used.
 const TEDDY_BOT_ID = "teddy-ultra-main";
 const UPDATE_ZIP_URL = "https://github.com/supreme-Lord2/xjx/archive/refs/heads/main.zip";
 // single source of truth — config.js said 2.9.0 while package.json said 2.8.8
