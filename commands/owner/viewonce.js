@@ -82,7 +82,18 @@ module.exports = {
                 );
             }
 
-            const quoted = ctx.quotedMessage;
+            let quoted = ctx.quotedMessage;
+
+            // Quoted-message context often contains only a media stub (no URL,
+            // directPath or mediaKey). Recover the full original message from
+            // the in-memory store populated when it first arrived.
+            if (ctx.stanzaId && global.teddyMessageStore?.loadMessage) {
+                try {
+                    const quotedChat = ctx.remoteJid || chatId;
+                    const stored = await global.teddyMessageStore.loadMessage(quotedChat, ctx.stanzaId);
+                    if (stored?.message) quoted = stored.message;
+                } catch (_) {}
+            }
 
             // ── Unwrap and identify the actual view-once media ─────────────
             const extracted = extractViewOnceMedia(quoted);
@@ -110,7 +121,7 @@ module.exports = {
 
             tmpPath = createTempFilePath('vv', ext);
             const writeStream = fs.createWriteStream(tmpPath);
-            const dlStream    = await downloadContentFromMessage(actualMsg[mtype], downloadType);
+            const dlStream    = await downloadContentFromMessage(media, downloadType);
             await new Promise((resolve, reject) => {
                 dlStream.pipe(writeStream);
                 writeStream.on('finish', resolve);
