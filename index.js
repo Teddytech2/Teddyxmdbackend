@@ -1046,9 +1046,6 @@ function checkEnvStatus() {
 const STORE_MAX_CHATS = Math.max(50, parseInt(process.env.TEDDY_MAX_STORED_CHATS, 10) || 300)
 const STORE_MAX_MSGS_PER_CHAT = Math.max(20, parseInt(process.env.TEDDY_MAX_STORED_MSGS_PER_CHAT, 10) || 100)
 const store = createMessageStore({ maxPerChat: STORE_MAX_MSGS_PER_CHAT, maxChats: STORE_MAX_CHATS })
-// Expose the bounded message store to commands that need the original media
-// payload; WhatsApp's quotedMessage context can omit downloadable media fields.
-global.teddyMessageStore = store
 
 // Handle to the web chat UI (utils/webChat.js) — set when the keep-alive
 // server boots; fed with messages + presence for search/typing indicators.

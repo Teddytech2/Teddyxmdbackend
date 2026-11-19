@@ -37,7 +37,7 @@
     "ANTIDELETE_MODE": {
       "description": "Anti-delete mode: off, chat, or private.",
       "required": false,
-      "value": "private"
+      "value": "off"
     },
     "STATUS_MODE": {
       "description": "Presence: off, typing, recording, or recordtype.",
@@ -67,7 +67,7 @@
     "AUTOSTATUSVIEW": {
       "description": "Automatically view WhatsApp statuses: true or false.",
       "required": false,
-      "value": "true"
+      "value": "false"
     },
     "AUTOREACTSTATUS": {
       "description": "Automatically react to WhatsApp statuses: true or false.",
