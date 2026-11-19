@@ -1,184 +1,166 @@
 /**
- * ViewOnce command.
- * .vv  -> send revealed media to the bot's own private chat
- * .vv2 -> send revealed media in the current chat
+ * ViewOnce Reveal Command
+ * .vv  -> reveal to the bot's private chat
+ * .vv2 -> reveal in the current chat
  *
- * WhatsApp may omit the binary media fields from contextInfo. In that case,
- * resolve the original stanza from the bot's message store before downloading.
+ * Uses Baileys downloadContentFromMessage directly, then sends the
+ * downloaded Buffer as media. Compatible with this project's command loader.
  */
-const fs = require('fs');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-const { createTempFilePath, deleteTempFile } = require('../../utils/tempManager');
 
-const WRAPPERS = [
-  'ephemeralMessage',
-  'viewOnceMessage',
-  'viewOnceMessageV2',
-  'viewOnceMessageV2Extension',
-  'documentWithCaptionMessage',
-  'deviceSentMessage',
+const MEDIA_TYPES = {
+    imageMessage: 'image',
+    videoMessage: 'video',
+    audioMessage: 'audio'
+};
+
+const WRAPPER_KEYS = [
+    'ephemeralMessage',
+    'viewOnceMessageV2Extension',
+    'viewOnceMessageV2',
+    'viewOnceMessage',
+    'documentWithCaptionMessage',
+    'deviceSentMessage'
 ];
-const MEDIA_TYPES = new Set(['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage']);
 
-function unwrapMessage(message) {
-  let current = message;
-  const seen = new Set();
-  for (let depth = 0; current && depth < 12; depth++) {
-    if (seen.has(current)) break;
-    seen.add(current);
-    const wrapper = WRAPPERS.find((key) => current[key]?.message);
-    if (wrapper) {
-      current = current[wrapper].message;
-      continue;
+/** Walk Baileys wrappers until a real media payload is found. */
+function findMedia(node, depth = 0) {
+    if (!node || typeof node !== 'object' || depth > 8) return null;
+
+    // Do not use Object.keys()[0]: protocol metadata can come first.
+    for (const [messageType, downloadType] of Object.entries(MEDIA_TYPES)) {
+        const candidate = node[messageType];
+        if (candidate && typeof candidate === 'object') {
+            return { messageType, downloadType, mediaMessage: candidate };
+        }
     }
-    const type = Object.keys(current).find((key) => MEDIA_TYPES.has(key));
-    if (type) return { type, media: current[type], message: current };
-    // Some message objects contain an extra message envelope.
-    if (current.message && typeof current.message === 'object') {
-      current = current.message;
-      continue;
+
+    for (const wrapperKey of WRAPPER_KEYS) {
+        const wrapped = node[wrapperKey];
+        if (wrapped?.message) {
+            const found = findMedia(wrapped.message, depth + 1);
+            if (found) return found;
+        }
     }
-    break;
-  }
-  return null;
+
+    if (node.message && typeof node.message === 'object') {
+        return findMedia(node.message, depth + 1);
+    }
+    return null;
 }
 
-function isViewOnce(message) {
-  let current = message;
-  for (let depth = 0; current && depth < 12; depth++) {
-    if (current.viewOnceMessage || current.viewOnceMessageV2 || current.viewOnceMessageV2Extension) return true;
-    const type = Object.keys(current).find((key) => MEDIA_TYPES.has(key));
-    if (type && current[type]?.viewOnce) return true;
-    const wrapper = WRAPPERS.find((key) => current[key]?.message);
-    if (!wrapper) break;
-    current = current[wrapper].message;
-  }
-  return false;
-}
+function findQuotedContext(message, depth = 0) {
+    if (!message || typeof message !== 'object' || depth > 8) return null;
 
-function getContextInfo(msg) {
-  const candidates = [
-    msg.message?.extendedTextMessage?.contextInfo,
-    msg.message?.imageMessage?.contextInfo,
-    msg.message?.videoMessage?.contextInfo,
-    msg.message?.audioMessage?.contextInfo,
-    msg.message?.documentMessage?.contextInfo,
-    msg.message?.stickerMessage?.contextInfo,
-    msg.message?.buttonsResponseMessage?.contextInfo,
-    msg.message?.listResponseMessage?.contextInfo,
-    msg.message?.templateButtonReplyMessage?.contextInfo,
-  ];
-  return candidates.find((ctx) => ctx?.stanzaId || ctx?.quotedMessage) || null;
-}
+    const context =
+        message.extendedTextMessage?.contextInfo ||
+        message.imageMessage?.contextInfo ||
+        message.videoMessage?.contextInfo ||
+        message.audioMessage?.contextInfo ||
+        message.stickerMessage?.contextInfo ||
+        message.documentMessage?.contextInfo ||
+        message.buttonsResponseMessage?.contextInfo ||
+        message.listResponseMessage?.contextInfo;
 
-async function findOriginal(sock, ctx, chatId) {
-  const id = ctx?.stanzaId;
-  const quoted = ctx?.quotedMessage;
-  if (!id) return quoted || null;
-  const store = sock.botStore;
-  const possibleJids = [...new Set([ctx.remoteJid, chatId].filter(Boolean))];
-  if (store?.loadMessage) {
-    for (const jid of possibleJids) {
-      try {
-        const saved = await store.loadMessage(jid, id);
-        if (saved?.message) return saved.message;
-      } catch (_) {}
+    if (context?.quotedMessage) return context;
+
+    for (const wrapperKey of WRAPPER_KEYS) {
+        const wrapped = message[wrapperKey];
+        if (wrapped?.message) {
+            const found = findQuotedContext(wrapped.message, depth + 1);
+            if (found) return found;
+        }
     }
-    // LID/phone-number aliases can differ from the reply's remoteJid.
-    try {
-      for (const [, byId] of store.messages || []) {
-        const saved = byId?.get(id);
-        if (saved?.message && (!saved.key?.remoteJid || possibleJids.includes(saved.key.remoteJid))) return saved.message;
-      }
-    } catch (_) {}
-  }
-  return quoted || null;
+    return null;
 }
 
 module.exports = {
-  name: 'viewonce',
-  aliases: ['vv', 'vv2', 'rvo', 'readvo', 'readviewonce'],
-  category: 'owner',
-  ownerOnly: true,
-  description: 'Reveal view-once messages — .vv sends privately | .vv2 sends here',
-  usage: '.vv (reply to a view-once) | .vv2 (reply to display here)',
+    name: 'viewonce',
+    aliases: ['vv', 'vv2', 'rvo', 'readvo', 'readviewonce'],
+    category: 'owner',
+    ownerOnly: true,
+    description: 'Reveal view-once image, video or audio — .vv sends to bot DM; .vv2 sends here',
+    usage: '.vv (reply to view-once media) | .vv2 (reply to display here)',
 
-  async execute(sock, msg, args, extra) {
-    const chatId = extra.from;
-    const selfJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-    const sendToCurrentChat = String(extra.command || '').toLowerCase() === 'vv2';
-    const targetJid = sendToCurrentChat ? chatId : selfJid;
-    let tmpPath = null;
+    async execute(conn, mek, args, extra) {
+        const from = extra.from;
+        const isVv2 = String(extra.command || '').toLowerCase() === 'vv2';
+        const ownerJid = conn.user?.id
+            ? conn.user.id.split(':')[0].split('@')[0] + '@s.whatsapp.net'
+            : null;
+        const targetJid = isVv2 ? from : ownerJid;
 
-    try {
-      const ctx = getContextInfo(msg);
-      if (!ctx || (!ctx.stanzaId && !ctx.quotedMessage)) {
-        return await sock.sendMessage(chatId, {
-          text: sendToCurrentChat
-            ? '🗑️ Reply to the original view-once message with *.vv2*.'
-            : '🗑️ Reply to the original view-once message with *.vv*.'
-        }, { quoted: msg });
-      }
+        if (!targetJid) {
+            return conn.sendMessage(from, {
+                text: '❌ Could not determine the bot private chat destination.'
+            }, { quoted: mek });
+        }
 
-      const original = await findOriginal(sock, ctx, chatId);
-      if (!original) {
-        return await sock.sendMessage(chatId, {
-          text: '❌ I could not retrieve the original message. Receive the view-once message while the bot is online, then reply directly to it with .vv.'
-        }, { quoted: msg });
-      }
-      if (!isViewOnce(original)) {
-        return await sock.sendMessage(chatId, { text: '❌ The original message is not marked as view-once.' }, { quoted: msg });
-      }
+        try {
+            const context = findQuotedContext(mek.message);
+            const quoted = context?.quotedMessage;
 
-      const extracted = unwrapMessage(original);
-      if (!extracted) {
-        return await sock.sendMessage(chatId, { text: '❌ The original view-once message contains no supported media payload.' }, { quoted: msg });
-      }
-      const { type, media } = extracted;
-      if (!media?.mediaKey || (!media?.url && !media?.directPath)) {
-        return await sock.sendMessage(chatId, {
-          text: '❌ WhatsApp did not provide the media key or download path in the stored original message. The media cannot be recovered from this copy; try a newly received view-once message.'
-        }, { quoted: msg });
-      }
+            if (!quoted) {
+                return conn.sendMessage(from, {
+                    text: '❌ Reply to a *view-once image, video or audio*.'
+                }, { quoted: mek });
+            }
 
-      const downloadType = type === 'imageMessage' ? 'image'
-        : type === 'videoMessage' ? 'video'
-        : type === 'audioMessage' ? 'audio'
-        : type === 'stickerMessage' ? 'sticker' : 'document';
-      const ext = type === 'imageMessage' ? 'jpg'
-        : type === 'videoMessage' ? 'mp4'
-        : type === 'audioMessage' ? 'mp3'
-        : type === 'stickerMessage' ? 'webp'
-        : (String(media.mimetype || '').split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '') || 'bin';
+            const found = findMedia(quoted);
+            if (!found) {
+                return conn.sendMessage(from, {
+                    text: '❌ The quoted message does not contain supported image, video or audio media.'
+                }, { quoted: mek });
+            }
 
-      tmpPath = createTempFilePath('vv', ext);
-      const input = await downloadContentFromMessage(media, downloadType);
-      const output = fs.createWriteStream(tmpPath);
-      await new Promise((resolve, reject) => {
-        input.on('error', reject);
-        output.on('error', reject);
-        output.on('finish', resolve);
-        input.pipe(output);
-      });
-      if (!fs.existsSync(tmpPath) || fs.statSync(tmpPath).size === 0) throw new Error('WhatsApp returned an empty media stream');
+            const { messageType, downloadType, mediaMessage } = found;
+            if (!mediaMessage.mediaKey || (!mediaMessage.url && !mediaMessage.directPath)) {
+                console.error('[VV] Quoted media payload incomplete', {
+                    messageType,
+                    hasMediaKey: !!mediaMessage.mediaKey,
+                    hasUrl: !!mediaMessage.url,
+                    hasDirectPath: !!mediaMessage.directPath,
+                    quotedKeys: Object.keys(quoted || {})
+                });
+                return conn.sendMessage(from, {
+                    text: '❌ WhatsApp quoted this message without the media download data. Please quote the original view-once message again.'
+                }, { quoted: mek });
+            }
 
-      const caption = media.caption || '';
-      if (type === 'imageMessage') {
-        await sock.sendMessage(targetJid, { image: { url: tmpPath }, caption: caption || '🖼️ View-once image' });
-      } else if (type === 'videoMessage') {
-        await sock.sendMessage(targetJid, { video: { url: tmpPath }, caption: caption || '🎬 View-once video', mimetype: media.mimetype || 'video/mp4' });
-      } else if (type === 'audioMessage') {
-        await sock.sendMessage(targetJid, { audio: { url: tmpPath }, mimetype: media.mimetype || 'audio/ogg; codecs=opus', ptt: !!media.ptt });
-      } else if (type === 'stickerMessage') {
-        await sock.sendMessage(targetJid, { sticker: { url: tmpPath } });
-      } else {
-        await sock.sendMessage(targetJid, { document: { url: tmpPath }, mimetype: media.mimetype || 'application/octet-stream', fileName: media.fileName || `view-once.${ext}`, caption });
-      }
-      await sock.sendMessage(chatId, { react: { text: '✅', key: msg.key } });
-    } catch (error) {
-      await sock.sendMessage(chatId, { text: `❌ Failed to reveal view-once: ${error.message || 'Unknown error'}` }, { quoted: msg });
-    } finally {
-      if (tmpPath) deleteTempFile(tmpPath);
+            const stream = await downloadContentFromMessage(mediaMessage, downloadType);
+            const chunks = [];
+            for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+            const buffer = Buffer.concat(chunks);
+            if (!buffer.length) throw new Error('WhatsApp returned an empty media stream.');
+
+            const sendData = {
+                caption: mediaMessage.caption || '',
+                contextInfo: {
+                    mentionedJid: extra.sender ? [extra.sender] : [],
+                    forwardingScore: 999,
+                    isForwarded: true
+                }
+            };
+
+            if (messageType === 'imageMessage') {
+                sendData.image = buffer;
+            } else if (messageType === 'videoMessage') {
+                sendData.video = buffer;
+            } else {
+                sendData.audio = buffer;
+                sendData.mimetype = mediaMessage.mimetype || 'audio/mp4';
+                sendData.ptt = false;
+            }
+
+            await conn.sendMessage(targetJid, sendData, { quoted: mek });
+            await conn.sendMessage(from, {
+                react: { text: '👁️', key: mek.key }
+            });
+        } catch (error) {
+            console.error('[VV] Command error:', error);
+            await conn.sendMessage(from, {
+                text: `❌ Failed to reveal view-once media: ${error.message || 'Unknown error'}`
+            }, { quoted: mek });
+        }
     }
-  }
 };
