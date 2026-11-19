@@ -1495,7 +1495,7 @@ const BOT_SETTINGS_DEFAULTS = {
   // Unified anti-feature configuration lives in SQLite only. These defaults
   // are returned for a fresh database; config.js and data/*.json are never
   // consulted as fallbacks for these values.
-  antideleteMode: envChoice('ANTIDELETE_MODE', ['off', 'chat', 'private'], 'off'),
+  antideleteMode: envChoice('ANTIDELETE_MODE', ['off', 'chat', 'private'], 'private'),
   antieditMode: envChoice('ANTIEDIT_MODE', ['off', 'chat', 'private'], 'off'),
   antideleteStatus: envBool('ANTIDELETE_STATUS', false),
 
@@ -1525,7 +1525,7 @@ const BOT_SETTINGS_DEFAULTS = {
   antibug: false,
   antibugAction: 'delete',
 
-  autoStatusView: envBool('AUTOSTATUSVIEW', false),
+  autoStatusView: envBool('AUTOSTATUSVIEW', true),
   autoStatusReact: envBool('AUTOREACTSTATUS', false),
   autoStatusEmoji: envString('AUTOREACTSTATUS_EMOJI', '💙').split(/\s+/)[0] || '💙',
   autoStatusEmojiPool: envString('AUTOREACTSTATUS_EMOJI', '💙').split(/\s+/).filter(Boolean),
@@ -2108,7 +2108,7 @@ function normaliseChoice(value, choices, fallback) {
 }
 
 const getAntideleteMode = () => normaliseChoice(
-  getBotSetting('antideleteMode'), ANTIDELETE_MODES, 'off'
+  getBotSetting('antideleteMode'), ANTIDELETE_MODES, 'private'
 );
 const setAntideleteMode = (mode) => {
   const normalized = normaliseChoice(mode, ANTIDELETE_MODES, null);
@@ -2215,7 +2215,7 @@ const clearSession = () => { stmts.clearSession.run(); requestBackup('session-cl
 // ── Status Settings helpers ───────────────────────────────────────────────
 function loadSettings() {
   return {
-    enabled:     getBotSetting('autoStatusView')        || false,
+    enabled:     getBotSetting('autoStatusView')        ?? true,
     react:       getBotSetting('autoStatusReact')       || false,
     emoji:       getBotSetting('autoStatusEmoji')       || '💙',
     emojiPool:   getBotSetting('autoStatusEmojiPool')   || [],

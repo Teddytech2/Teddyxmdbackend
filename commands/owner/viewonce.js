@@ -11,6 +11,39 @@ const fs = require('fs');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const { createTempFilePath, deleteTempFile } = require('../../utils/tempManager');
 
+const MEDIA_TYPES = Object.freeze({
+    imageMessage: 'image',
+    videoMessage: 'video',
+    audioMessage: 'audio',
+});
+
+// WhatsApp may nest view-once payloads inside ephemeral and other wrappers.
+// Walk the payload instead of assuming the view-once wrapper is at the root.
+function extractViewOnceMedia(message, depth = 0, insideViewOnce = false) {
+    if (!message || typeof message !== 'object' || depth > 8) return null;
+
+    for (const [type, downloadType] of Object.entries(MEDIA_TYPES)) {
+        const media = message[type];
+        if (media && (insideViewOnce || media.viewOnce)) {
+            return { type, downloadType, media };
+        }
+    }
+
+    const wrappers = [
+        'ephemeralMessage', 'viewOnceMessageV2Extension',
+        'viewOnceMessageV2', 'viewOnceMessage', 'documentWithCaptionMessage',
+    ];
+    for (const wrapper of wrappers) {
+        const inner = message[wrapper]?.message;
+        if (!inner) continue;
+        const isViewOnceWrapper = wrapper.startsWith('viewOnceMessage');
+        const found = extractViewOnceMedia(inner, depth + 1, insideViewOnce || isViewOnceWrapper);
+        if (found) return found;
+    }
+
+    return null;
+}
+
 module.exports = {
     name: 'viewonce',
     aliases: ['vv', 'vv2', 'rvo', 'readvo', 'readviewonce'],
@@ -51,60 +84,26 @@ module.exports = {
 
             const quoted = ctx.quotedMessage;
 
-            // ── Check that it's actually a view-once ───────────────────────
-            const hasViewOnce =
-                !!quoted.viewOnceMessageV2Extension ||
-                !!quoted.viewOnceMessageV2 ||
-                !!quoted.viewOnceMessage ||
-                !!quoted?.imageMessage?.viewOnce ||
-                !!quoted?.videoMessage?.viewOnce ||
-                !!quoted?.audioMessage?.viewOnce;
-
-            if (!hasViewOnce) {
+            // ── Unwrap and identify the actual view-once media ─────────────
+            const extracted = extractViewOnceMedia(quoted);
+            if (!extracted) {
                 return await sock.sendMessage(
                     chatId,
-                    { text: '❌ That is not a view-once message!' },
+                    { text: '❌ That is not a supported view-once image, video, or audio message.' },
                     { quoted: msg }
                 );
             }
 
-            // ── Unwrap the actual media message ────────────────────────────
-            let actualMsg = null;
-            let mtype     = null;
-
-            if (quoted.viewOnceMessageV2Extension?.message) {
-                actualMsg = quoted.viewOnceMessageV2Extension.message;
-                mtype     = Object.keys(actualMsg)[0];
-            } else if (quoted.viewOnceMessageV2?.message) {
-                actualMsg = quoted.viewOnceMessageV2.message;
-                mtype     = Object.keys(actualMsg)[0];
-            } else if (quoted.viewOnceMessage?.message) {
-                actualMsg = quoted.viewOnceMessage.message;
-                mtype     = Object.keys(actualMsg)[0];
-            } else if (quoted.imageMessage?.viewOnce) {
-                actualMsg = { imageMessage: quoted.imageMessage };
-                mtype     = 'imageMessage';
-            } else if (quoted.videoMessage?.viewOnce) {
-                actualMsg = { videoMessage: quoted.videoMessage };
-                mtype     = 'videoMessage';
-            } else if (quoted.audioMessage?.viewOnce) {
-                actualMsg = { audioMessage: quoted.audioMessage };
-                mtype     = 'audioMessage';
-            }
-
-            if (!actualMsg || !mtype) {
+            const { type: mtype, downloadType, media } = extracted;
+            if (!media || (!media.url && !media.directPath && !media.mediaKey)) {
                 return await sock.sendMessage(
                     chatId,
-                    { text: '❌ Unsupported view-once message type.' },
+                    { text: '❌ WhatsApp did not include downloadable media data in this quoted message. Try quoting the original view-once message again.' },
                     { quoted: msg }
                 );
             }
 
             // ── Stream to temp file (no memory limit) ─────────────────────
-            const downloadType =
-                mtype === 'imageMessage' ? 'image' :
-                mtype === 'videoMessage' ? 'video' : 'audio';
-
             const ext =
                 mtype === 'imageMessage' ? 'jpg' :
                 mtype === 'videoMessage' ? 'mp4' : 'mp4';
@@ -119,7 +118,7 @@ module.exports = {
                 dlStream.on('error', reject);
             });
 
-            const caption = actualMsg[mtype]?.caption || '';
+            const caption = media.caption || '';
 
             // ── Send via file path — Baileys streams upload, no size cap ──
             if (mtype === 'imageMessage') {
@@ -136,7 +135,7 @@ module.exports = {
             } else {
                 await sock.sendMessage(targetJid, {
                     audio: { url: tmpPath },
-                    mimetype: actualMsg[mtype]?.mimetype || 'audio/mp4',
+                    mimetype: media.mimetype || 'audio/mp4',
                     ptt: false
                 });
             }
