@@ -1,77 +1,76 @@
 /**
- * ViewOnce Command
+ * ViewOnce command
  * .vv  - reveal to the bot owner's private chat
  * .vv2 - reveal in the current chat
  *
- * Uses Baileys' downloadContentFromMessage stream and a Buffer, matching
- * the simple, reliable download/send flow used by the working reference.
+ * Prefer the quoted message, but fall back to the original full message cached
+ * by handler.js when WhatsApp supplies a quoted view-once stub without media
+ * download fields (directPath/url/mediaKey).
  */
-
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
-function getQuotedMessage(msg) {
+function getQuotedContext(msg) {
     const message = msg.message || {};
-    const contexts = [
+    const candidates = [
         message.extendedTextMessage?.contextInfo,
         message.imageMessage?.contextInfo,
         message.videoMessage?.contextInfo,
+        message.audioMessage?.contextInfo,
         message.stickerMessage?.contextInfo,
         message.buttonsResponseMessage?.contextInfo,
         message.listResponseMessage?.contextInfo,
         message.templateButtonReplyMessage?.contextInfo,
         message.interactiveResponseMessage?.contextInfo,
     ];
-    const context = contexts.find(item => item?.quotedMessage);
-    return context?.quotedMessage || null;
+    return candidates.find(ctx => ctx?.quotedMessage) || null;
 }
 
-// WhatsApp can wrap the media in view-once, ephemeral, or caption wrappers.
-// Walk only known message-container fields; don't mistake arbitrary metadata
-// keys (e.g. messageContextInfo) for the actual media type.
 function findViewOnceMedia(root) {
-    const wrapperKeys = [
-        'viewOnceMessageV2',
-        'viewOnceMessageV2Extension',
-        'viewOnceMessage',
+    const wrappers = [
         'ephemeralMessage',
         'documentWithCaptionMessage',
         'deviceSentMessage',
+        'viewOnceMessageV2Extension',
+        'viewOnceMessageV2',
+        'viewOnceMessage',
     ];
-    const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage'];
-    const queue = [{ node: root, insideViewOnce: false }];
+    const types = ['imageMessage', 'videoMessage', 'audioMessage'];
+    const queue = [{ node: root, inViewOnce: false }];
     const seen = new Set();
 
     while (queue.length) {
-        const { node, insideViewOnce } = queue.shift();
+        const { node, inViewOnce } = queue.shift();
         if (!node || typeof node !== 'object' || seen.has(node)) continue;
         seen.add(node);
 
-        for (const type of mediaTypes) {
+        for (const type of types) {
             const media = node[type];
-            if (media && (insideViewOnce || media.viewOnce)) {
+            if (media && (inViewOnce || media.viewOnce)) {
                 return { media, type };
             }
         }
 
-        for (const key of wrapperKeys) {
-            const wrapper = node[key];
-            const wrapped = wrapper?.message;
-            if (wrapped && typeof wrapped === 'object') {
-                const isViewOnceWrapper = key.startsWith('viewOnceMessage');
+        for (const key of wrappers) {
+            const inner = node[key]?.message;
+            if (inner && typeof inner === 'object') {
                 queue.push({
-                    node: wrapped,
-                    insideViewOnce: insideViewOnce || isViewOnceWrapper,
+                    node: inner,
+                    inViewOnce: inViewOnce || key.startsWith('viewOnceMessage'),
                 });
             }
         }
         if (node.message && typeof node.message === 'object') {
-            queue.push({ node: node.message, insideViewOnce });
+            queue.push({ node: node.message, inViewOnce });
         }
     }
     return null;
 }
 
-async function streamToBuffer(stream) {
+function hasDownloadFields(media) {
+    return !!(media && (media.directPath || media.url) && media.mediaKey);
+}
+
+async function toBuffer(stream) {
     const chunks = [];
     for await (const chunk of stream) chunks.push(Buffer.from(chunk));
     return Buffer.concat(chunks);
@@ -87,7 +86,7 @@ module.exports = {
 
     async execute(sock, msg, args, extra = {}) {
         const chatId = extra.from || msg.key.remoteJid;
-        const command = String(extra.command || 'vv').toLowerCase();
+        const command = String(extra.command || '').toLowerCase();
         const sendToCurrentChat = command === 'vv2';
         const selfJid = sock.user?.id
             ? `${sock.user.id.split(':')[0].split('@')[0]}@s.whatsapp.net`
@@ -95,37 +94,54 @@ module.exports = {
         const targetJid = sendToCurrentChat ? chatId : selfJid;
 
         try {
-            const quoted = getQuotedMessage(msg);
-            if (!quoted) {
+            const ctx = getQuotedContext(msg);
+            if (!ctx?.quotedMessage || !ctx.stanzaId) {
                 return await sock.sendMessage(chatId, {
-                    text: sendToCurrentChat
-                        ? '🗑️ Reply to a *view-once* message with *.vv2* to reveal it here.'
-                        : '🗑️ Reply to a *view-once* message with *.vv* to reveal it in your DM.'
+                    text: '❌ Reply directly to the original view-once image, video, or audio with .vv or .vv2.'
                 }, { quoted: msg });
             }
 
-            const found = findViewOnceMedia(quoted);
+            // First try the quoted payload. Some WhatsApp clients provide only
+            // a partial quoted stub, so use the original cached message next.
+            let found = findViewOnceMedia(ctx.quotedMessage);
+            if (!found || !hasDownloadFields(found.media)) {
+                const original = global.getCachedViewOnceMessage?.(ctx.stanzaId);
+                if (original?.message) {
+                    const cachedFound = findViewOnceMedia(original.message);
+                    if (cachedFound && hasDownloadFields(cachedFound.media)) {
+                        found = cachedFound;
+                    }
+                }
+            }
+
             if (!found) {
-                return await sock.sendMessage(chatId, {
-                    text: '❌ Please reply directly to a view-once image, video, or audio message.'
-                }, { quoted: msg });
+                throw new Error(
+                    'The original media was not available in the bot cache. Send/reply to the view-once after the bot is online, then try .vv again.'
+                );
+            }
+            if (!hasDownloadFields(found.media)) {
+                throw new Error(
+                    'The quoted media has no directPath/url and mediaKey. WhatsApp did not provide a downloadable original message.'
+                );
             }
 
             const { media, type } = found;
-            const downloadType = type === 'imageMessage' ? 'image'
+            const kind = type === 'imageMessage' ? 'image'
                 : type === 'videoMessage' ? 'video' : 'audio';
-            const buffer = await streamToBuffer(
-                await downloadContentFromMessage(media, downloadType)
+            const buffer = await toBuffer(
+                await downloadContentFromMessage(media, kind)
             );
-
             if (!buffer.length) throw new Error('Baileys returned an empty media stream');
 
-            const caption = media.caption || '';
             let payload;
             if (type === 'imageMessage') {
-                payload = { image: buffer, caption };
+                payload = { image: buffer, caption: media.caption || '' };
             } else if (type === 'videoMessage') {
-                payload = { video: buffer, caption, mimetype: media.mimetype || 'video/mp4' };
+                payload = {
+                    video: buffer,
+                    caption: media.caption || '',
+                    mimetype: media.mimetype || 'video/mp4',
+                };
             } else {
                 payload = {
                     audio: buffer,
