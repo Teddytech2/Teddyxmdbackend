@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage, downloadMediaMessage } = require('@whiskeysockets/baileys');
 
 let createTempFilePath, deleteTempFile;
 try {
@@ -18,9 +18,8 @@ function getContextInfo(msg) {
     return m.extendedTextMessage?.contextInfo || null;
 }
 
-function extractViewOnceFromFullMessage(fullWAMsg) {
-    // fullWAMsg can be { message: {...} } or direct
-    let cur = fullWAMsg.message || fullWAMsg;
+function extractFromFull(full) {
+    let cur = full.message || full;
     for (let i = 0; i < 6; i++) {
         if (cur.ephemeralMessage?.message) cur = cur.ephemeralMessage.message;
         else if (cur.viewOnceMessageV2Extension?.message) cur = cur.viewOnceMessageV2Extension.message;
@@ -37,7 +36,6 @@ module.exports = {
     name: 'viewonce',
     aliases: ['vv', 'vv2'],
     ownerOnly: true,
-
     async execute(sock, msg, args, extra) {
         const chatId = extra.from || msg.key.remoteJid;
         const body = (msg.message?.extendedTextMessage?.text || msg.message?.conversation || '').toLowerCase();
@@ -48,68 +46,63 @@ module.exports = {
         let tmpPath = null;
         try {
             const ctx = getContextInfo(msg);
-            if (!ctx?.stanzaId) {
-                return await sock.sendMessage(chatId, { text: '🗑️ Reply to a view-once message with .vv' }, { quoted: msg });
-            }
+            if (!ctx?.stanzaId) return await sock.sendMessage(chatId, { text: 'Reply to a view-once' }, { quoted: msg });
 
-            // TRY 1: Load full original message from Baileys store / TEDDY DB
-            let fullMsg = null;
+            global.viewOnceCache = global.viewOnceCache || new Map();
             
-            // Baileys in-memory store
-            try {
-                if (sock.store?.loadMessage) {
-                    fullMsg = await sock.store.loadMessage(chatId, ctx.stanzaId);
-                }
-            } catch {}
-
-            // TEDDY SQLite store - try to find in recent messages cache
-            if (!fullMsg && global?.teddyStore?.getMessage) {
-                try { fullMsg = await global.teddyStore.getMessage(chatId, ctx.stanzaId); } catch {}
+            // 1. Try cache first (THIS IS THE KEY)
+            let fullMsg = global.viewOnceCache.get(ctx.stanzaId);
+            
+            // 2. Try Baileys store
+            if (!fullMsg && sock.store?.loadMessage) {
+                try { fullMsg = await sock.store.loadMessage(chatId, ctx.stanzaId); } catch {}
             }
+            
+            // 3. Fallback to quoted preview
+            if (!fullMsg) fullMsg = { message: ctx.quotedMessage };
 
-            // If store failed, fallback to quoted preview (will fail if expired, but we try)
-            if (!fullMsg) {
-                fullMsg = { message: ctx.quotedMessage };
-                console.log('VV WARN: store miss, using quoted preview - may have no url');
-            }
-
-            const actualMsg = extractViewOnceFromFullMessage(fullMsg);
-            if (!actualMsg) {
-                console.log('VV DEBUG fullMsg keys:', Object.keys(fullMsg.message || fullMsg));
-                return await sock.sendMessage(chatId, { text: '❌ Not a view-once or message not found in store. Send view-once and immediately reply .vv without opening.' }, { quoted: msg });
-            }
+            const actualMsg = extractFromFull(fullMsg);
+            if (!actualMsg) return await sock.sendMessage(chatId, { text: '❌ Message not in cache. Send a NEW view-once AFTER restarting bot, then instantly .vv' }, { quoted: msg });
 
             const mtype = Object.keys(actualMsg)[0];
             const mediaObj = actualMsg[mtype];
-            
-            // clear viewOnce flags
             delete mediaObj.viewOnce;
-            delete mediaObj.isViewOnce;
 
-            if (!mediaObj.directPath && !mediaObj.url) {
-                return await sock.sendMessage(chatId, { text: '❌ WhatsApp removed the media (already opened on another device). Send a NEW unopened view-once and reply instantly.' }, { quoted: msg });
+            // Try reupload if no directPath
+            let buffer;
+            try {
+                if (mediaObj.directPath || mediaObj.url) {
+                    const stream = await downloadContentFromMessage(mediaObj, mtype === 'imageMessage' ? 'image' : 'video');
+                    buffer = Buffer.from([]);
+                    for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
+                } else {
+                    // Ask sender to reupload
+                    buffer = await downloadMediaMessage(fullMsg, 'buffer', {}, { 
+                        logger: console, 
+                        reuploadRequest: sock.updateMediaMessage 
+                    });
+                }
+            } catch (e) {
+                console.log('Download failed, trying reupload:', e.message);
+                buffer = await downloadMediaMessage(fullMsg, 'buffer', {}, { 
+                    logger: console, 
+                    reuploadRequest: sock.updateMediaMessage 
+                });
             }
 
-            const dlType = mtype === 'imageMessage' ? 'image' : mtype === 'videoMessage' || mtype === 'ptvMessage' ? 'video' : 'audio';
-            const ext = mtype === 'imageMessage' ? 'jpg' : 'mp4';
-
-            tmpPath = createTempFilePath('vv', ext);
-            const stream = await downloadContentFromMessage(mediaObj, dlType);
-            let buf = Buffer.from([]);
-            for await (const chunk of stream) buf = Buffer.concat([buf, chunk]);
-            fs.writeFileSync(tmpPath, buf);
+            tmpPath = createTempFilePath('vv', mtype === 'imageMessage' ? 'jpg' : 'mp4');
+            fs.writeFileSync(tmpPath, buffer);
 
             if (mtype === 'imageMessage') {
-                await sock.sendMessage(targetJid, { image: { url: tmpPath }, caption: mediaObj.caption || '🖼️ ViewOnce' });
+                await sock.sendMessage(targetJid, { image: { url: tmpPath }, caption: mediaObj.caption || '' });
             } else {
-                await sock.sendMessage(targetJid, { video: { url: tmpPath }, caption: mediaObj.caption || '🎬 ViewOnce', mimetype: 'video/mp4' });
+                await sock.sendMessage(targetJid, { video: { url: tmpPath }, caption: mediaObj.caption || '', mimetype: 'video/mp4' });
             }
-
             await sock.sendMessage(chatId, { react: { text: '✅', key: msg.key } });
 
         } catch (e) {
-            console.error('VV ERROR', e);
-            await sock.sendMessage(chatId, { text: `❌ Failed: ${e.message}` }, { quoted: msg });
+            console.error('VV FINAL ERROR', e);
+            await sock.sendMessage(chatId, { text: `❌ Failed: ${e.message}\nMake sure you sent the view-once AFTER bot started and didn't open it.` }, { quoted: msg });
         } finally {
             if (tmpPath) setTimeout(() => deleteTempFile(tmpPath), 8000);
         }
