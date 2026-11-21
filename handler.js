@@ -54,36 +54,42 @@ global.invalidateSettingsCache = () => {
 };
 
 // ── ViewOnce Reveal Cache ────────────────────────────────────────────────────
-// Stores recently-seen view-once messages so emoji reactions can look them up.
-// Key: message ID (string)   Value: { msg, expires }
-const voCache = new Map();
-const VO_CACHE_TTL = 10 * 60 * 1000; // keep entries for 10 minutes
+// Shared cache so the handler and .vv command can resolve the same original message.
+// Key: message ID (string)   Value: original full message object
+const voCache = global.viewOnceCache || (global.viewOnceCache = new Map());
 
 // Resolve the bot's own JID once, consistently, wherever we need to DM ourselves.
 const getSelfJid = (sock) => sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
+
 function cacheViewOnceMsg(msg) {
   try {
     const id = msg.key?.id;
-    if (!id) return;
-    const raw = msg.message || {};
-    const isVO =
-      !!raw.viewOnceMessageV2Extension ||
-      !!raw.viewOnceMessageV2 ||
-      !!raw.viewOnceMessage ||
-      !!raw.ephemeralMessage?.message?.viewOnceMessageV2 ||
-      !!raw.imageMessage?.viewOnce ||
-      !!raw.videoMessage?.viewOnce ||
-      !!raw.audioMessage?.viewOnce;
-    if (!isVO) return;
-    voCache.set(id, { msg, expires: Date.now() + VO_CACHE_TTL });
-    // Evict expired entries every so often
-    if (voCache.size % 20 === 0) {
-      const now = Date.now();
-      for (const [k, v] of voCache) { if (v.expires < now) voCache.delete(k); }
+    if (!id || !msg.message) return;
+
+    // Check common Baileys wrappers, including nested ephemeral containers.
+    const isViewOnce = (node, depth = 0) => {
+      if (!node || typeof node !== 'object' || depth > 6) return false;
+      if (node.viewOnceMessageV2Extension || node.viewOnceMessageV2 || node.viewOnceMessage) return true;
+      if (node.imageMessage?.viewOnce || node.videoMessage?.viewOnce || node.audioMessage?.viewOnce) return true;
+      return isViewOnce(node.ephemeralMessage?.message, depth + 1) ||
+        isViewOnce(node.documentWithCaptionMessage?.message, depth + 1) ||
+        isViewOnce(node.viewOnceMessageV2Extension?.message, depth + 1) ||
+        isViewOnce(node.viewOnceMessageV2?.message, depth + 1) ||
+        isViewOnce(node.viewOnceMessage?.message, depth + 1);
+    };
+
+    if (!isViewOnce(msg.message)) return;
+    // Clone the original message to avoid later mutation by other handlers.
+    voCache.set(id, JSON.parse(JSON.stringify(msg)));
+    // Keep the cache bounded; remove oldest entries first.
+    while (voCache.size > 100) {
+      const firstKey = voCache.keys().next().value;
+      voCache.delete(firstKey);
     }
   } catch (_) {}
 }
+
 
 /** Reveal a cached view-once message and DM the media to targetJid. */
 async function revealVoToDM(sock, originalMsg, targetJid) {
@@ -637,9 +643,9 @@ const handleMessage = async (sock, msg) => {
         if (_rxn.text && (msg.key.fromMe || isOwner(_rxSender) || isSudo(_rxSender))) {
           const _origId = _rxn.key?.id;
           const _cached = _origId ? voCache.get(_origId) : null;
-          if (_cached && _cached.expires > Date.now()) {
+          if (_cached) {
             const _selfJid = getSelfJid(sock);
-            const _ok = await revealVoToDM(sock, _cached.msg, _selfJid);
+            const _ok = await revealVoToDM(sock, _cached, _selfJid);
             if (_ok) {
               // React ✅ on the original reaction message to confirm
               await sock.sendMessage(_rxFrom, { react: { text: '✅', key: msg.key } });
