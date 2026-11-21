@@ -103,10 +103,14 @@ function cacheViewOnceMsg(msg) {
           });
         }
       }
+      // Baileys may wrap decoded content in an additional message container.
+      if (node.message && typeof node.message === 'object') {
+        queue.push({ node: node.message, inViewOnce });
+      }
     }
 
     if (!isVO) return;
-    voCache.set(id, { msg, expires: Date.now() });
+    voCache.set(id, { msg, expires: Date.now() + VO_CACHE_TTL });
     // Evict expired entries every so often
     if (voCache.size % 20 === 0) {
       const now = Date.now();
