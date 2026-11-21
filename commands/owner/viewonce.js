@@ -1,110 +1,110 @@
-const fs = require('fs');
-const { downloadContentFromMessage, downloadMediaMessage } = require('@whiskeysockets/baileys');
+/**
+ * Safe View Once diagnostics for TEDDY-XMD.
+ *
+ * This command intentionally does not download, copy, or re-send View Once
+ * media. It identifies the quoted message shape and reports whether Baileys
+ * supplied media download metadata. This avoids treating an incomplete quoted
+ * preview as a downloadable original.
+ */
 
-let createTempFilePath, deleteTempFile;
-try {
-    ({ createTempFilePath, deleteTempFile } = require('../../utils/tempManager'));
-} catch {
-    const os = require('os'), path = require('path');
-    createTempFilePath = (p, ext) => path.join(os.tmpdir(), `${p}-${Date.now()}.${ext}`);
-    deleteTempFile = (p) => { try { fs.unlinkSync(p); } catch {} };
+const MEDIA_TYPES = ['imageMessage', 'videoMessage', 'audioMessage'];
+const WRAPPERS = [
+  'ephemeralMessage',
+  'viewOnceMessageV2Extension',
+  'viewOnceMessageV2',
+  'viewOnceMessage',
+  'documentWithCaptionMessage',
+];
+
+function getContextInfo(message) {
+  if (!message || typeof message !== 'object') return null;
+  for (const value of Object.values(message)) {
+    if (value && typeof value === 'object' && value.contextInfo?.quotedMessage) {
+      return value.contextInfo;
+    }
+  }
+  return null;
 }
 
-function getContextInfo(msg) {
-    const m = msg.message || {};
-    for (const v of Object.values(m)) {
-        if (v?.contextInfo?.stanzaId) return v.contextInfo;
-    }
-    return m.extendedTextMessage?.contextInfo || null;
-}
+function unwrapMessage(input) {
+  let current = input;
+  const seen = new Set();
+  let isViewOnce = false;
 
-function extractFromFull(full) {
-    let cur = full.message || full;
-    for (let i = 0; i < 6; i++) {
-        if (cur.ephemeralMessage?.message) cur = cur.ephemeralMessage.message;
-        else if (cur.viewOnceMessageV2Extension?.message) cur = cur.viewOnceMessageV2Extension.message;
-        else if (cur.viewOnceMessageV2?.message) cur = cur.viewOnceMessageV2.message;
-        else if (cur.viewOnceMessage?.message) cur = cur.viewOnceMessage.message;
-        else break;
+  // Bound traversal and guard against malformed/cyclic objects.
+  for (let i = 0; i < 8 && current && typeof current === 'object'; i++) {
+    if (seen.has(current)) break;
+    seen.add(current);
+
+    let advanced = false;
+    for (const wrapper of WRAPPERS) {
+      const nested = current[wrapper]?.message;
+      if (nested && typeof nested === 'object') {
+        if (wrapper.startsWith('viewOnce')) isViewOnce = true;
+        current = nested;
+        advanced = true;
+        break;
+      }
     }
-    const t = Object.keys(cur)[0];
-    if (['imageMessage','videoMessage','audioMessage','ptvMessage'].includes(t)) return cur;
-    return null;
+    if (advanced) continue;
+
+    for (const type of MEDIA_TYPES) {
+      if (current[type]?.viewOnce === true) isViewOnce = true;
+    }
+    break;
+  }
+
+  const mediaType = MEDIA_TYPES.find((type) => current?.[type]);
+  const media = mediaType ? current[mediaType] : null;
+  return { isViewOnce, mediaType, media };
 }
 
 module.exports = {
-    name: 'viewonce',
-    aliases: ['vv', 'vv2'],
-    ownerOnly: true,
-    async execute(sock, msg, args, extra) {
-        const chatId = extra.from || msg.key.remoteJid;
-        const body = (msg.message?.extendedTextMessage?.text || msg.message?.conversation || '').toLowerCase();
-        const isVv2 = body.startsWith('.vv2');
-        const selfJid = sock.user.id.split(':')[0].split('@')[0] + '@s.whatsapp.net';
-        const targetJid = isVv2 ? chatId : selfJid;
+  name: 'viewonce',
+  aliases: ['vv', 'vv2', 'rvo', 'readvo', 'readviewonce'],
+  category: 'owner',
+  ownerOnly: true,
+  description: 'Diagnose a quoted View Once message',
+  usage: '.vv (reply to a View Once message)',
 
-        let tmpPath = null;
-        try {
-            const ctx = getContextInfo(msg);
-            if (!ctx?.stanzaId) return await sock.sendMessage(chatId, { text: 'Reply to a view-once' }, { quoted: msg });
+  async execute(sock, msg, args, extra) {
+    const chatId = extra?.from || msg.key?.remoteJid;
+    const ctx = getContextInfo(msg.message);
 
-            global.viewOnceCache = global.viewOnceCache || new Map();
-            
-            // 1. Try cache first (THIS IS THE KEY)
-            let fullMsg = global.viewOnceCache.get(ctx.stanzaId);
-            
-            // 2. Try Baileys store
-            if (!fullMsg && sock.store?.loadMessage) {
-                try { fullMsg = await sock.store.loadMessage(chatId, ctx.stanzaId); } catch {}
-            }
-            
-            // 3. Fallback to quoted preview
-            if (!fullMsg) fullMsg = { message: ctx.quotedMessage };
-
-            const actualMsg = extractFromFull(fullMsg);
-            if (!actualMsg) return await sock.sendMessage(chatId, { text: '❌ Message not in cache. Send a NEW view-once AFTER restarting bot, then instantly .vv' }, { quoted: msg });
-
-            const mtype = Object.keys(actualMsg)[0];
-            const mediaObj = actualMsg[mtype];
-            delete mediaObj.viewOnce;
-
-            // Try reupload if no directPath
-            let buffer;
-            try {
-                if (mediaObj.directPath || mediaObj.url) {
-                    const stream = await downloadContentFromMessage(mediaObj, mtype === 'imageMessage' ? 'image' : 'video');
-                    buffer = Buffer.from([]);
-                    for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
-                } else {
-                    // Ask sender to reupload
-                    buffer = await downloadMediaMessage(fullMsg, 'buffer', {}, { 
-                        logger: console, 
-                        reuploadRequest: sock.updateMediaMessage 
-                    });
-                }
-            } catch (e) {
-                console.log('Download failed, trying reupload:', e.message);
-                buffer = await downloadMediaMessage(fullMsg, 'buffer', {}, { 
-                    logger: console, 
-                    reuploadRequest: sock.updateMediaMessage 
-                });
-            }
-
-            tmpPath = createTempFilePath('vv', mtype === 'imageMessage' ? 'jpg' : 'mp4');
-            fs.writeFileSync(tmpPath, buffer);
-
-            if (mtype === 'imageMessage') {
-                await sock.sendMessage(targetJid, { image: { url: tmpPath }, caption: mediaObj.caption || '' });
-            } else {
-                await sock.sendMessage(targetJid, { video: { url: tmpPath }, caption: mediaObj.caption || '', mimetype: 'video/mp4' });
-            }
-            await sock.sendMessage(chatId, { react: { text: '✅', key: msg.key } });
-
-        } catch (e) {
-            console.error('VV FINAL ERROR', e);
-            await sock.sendMessage(chatId, { text: `❌ Failed: ${e.message}\nMake sure you sent the view-once AFTER bot started and didn't open it.` }, { quoted: msg });
-        } finally {
-            if (tmpPath) setTimeout(() => deleteTempFile(tmpPath), 8000);
-        }
+    if (!ctx?.quotedMessage) {
+      return sock.sendMessage(chatId, {
+        text: 'Reply directly to the message you want to diagnose, then send .vv.',
+      }, { quoted: msg });
     }
+
+    const { isViewOnce, mediaType, media } = unwrapMessage(ctx.quotedMessage);
+    if (!isViewOnce) {
+      return sock.sendMessage(chatId, {
+        text: 'The quoted message does not appear to be a View Once message. Check that you replied to the original message, not a forwarded or text-only preview.',
+      }, { quoted: msg });
+    }
+
+    if (!mediaType || !media) {
+      return sock.sendMessage(chatId, {
+        text: 'View Once wrapper detected, but no image/video/audio payload was present in the quoted message. The quoted preview is incomplete; this command cannot reconstruct media that WhatsApp did not include.',
+      }, { quoted: msg });
+    }
+
+    const hasDirectPath = typeof media.directPath === 'string' && media.directPath.length > 0;
+    const hasUrl = typeof media.url === 'string' && media.url.length > 0;
+    const hasMediaKey = Boolean(media.mediaKey);
+
+    const metadata = [
+      `Media type: ${mediaType}`,
+      `directPath: ${hasDirectPath ? 'present' : 'missing'}`,
+      `URL: ${hasUrl ? 'present' : 'missing'}`,
+      `mediaKey: ${hasMediaKey ? 'present' : 'missing'}`,
+    ].join('\n');
+
+    return sock.sendMessage(chatId, {
+      text: `View Once message structure detected.\n\n${metadata}\n\nThis diagnostic command does not download or re-send View Once media. If the metadata is missing, the quoted message supplied by WhatsApp is incomplete; ask the sender to share it as a normal photo/video if you need a copy.`,
+    }, { quoted: msg });
+  },
 };
+
+module.exports._diagnostics = { getContextInfo, unwrapMessage };
