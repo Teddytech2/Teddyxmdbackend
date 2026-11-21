@@ -66,49 +66,15 @@ function cacheViewOnceMsg(msg) {
   try {
     const id = msg.key?.id;
     if (!id) return;
-
-    // Walk the actual WhatsApp message containers. View-once payloads can be
-    // nested inside ephemeral/document-caption wrappers depending on client.
-    const wrapperKeys = [
-      'ephemeralMessage',
-      'documentWithCaptionMessage',
-      'viewOnceMessageV2Extension',
-      'viewOnceMessageV2',
-      'viewOnceMessage'
-    ];
-    const mediaKeys = ['imageMessage', 'videoMessage', 'audioMessage'];
-    const queue = [{ node: msg.message || {}, inViewOnce: false }];
-    const seen = new Set();
-    let isVO = false;
-
-    while (queue.length && !isVO) {
-      const { node, inViewOnce } = queue.shift();
-      if (!node || typeof node !== 'object' || seen.has(node)) continue;
-      seen.add(node);
-
-      for (const key of mediaKeys) {
-        if (node[key] && (inViewOnce || node[key].viewOnce)) {
-          isVO = true;
-          break;
-        }
-      }
-      if (isVO) break;
-
-      for (const key of wrapperKeys) {
-        const inner = node[key]?.message;
-        if (inner && typeof inner === 'object') {
-          queue.push({
-            node: inner,
-            inViewOnce: inViewOnce || key.startsWith('viewOnceMessage')
-          });
-        }
-      }
-      // Baileys may wrap decoded content in an additional message container.
-      if (node.message && typeof node.message === 'object') {
-        queue.push({ node: node.message, inViewOnce });
-      }
-    }
-
+    const raw = msg.message || {};
+    const isVO =
+      !!raw.viewOnceMessageV2Extension ||
+      !!raw.viewOnceMessageV2 ||
+      !!raw.viewOnceMessage ||
+      !!raw.ephemeralMessage?.message?.viewOnceMessageV2 ||
+      !!raw.imageMessage?.viewOnce ||
+      !!raw.videoMessage?.viewOnce ||
+      !!raw.audioMessage?.viewOnce;
     if (!isVO) return;
     voCache.set(id, { msg, expires: Date.now() + VO_CACHE_TTL });
     // Evict expired entries every so often
@@ -119,17 +85,6 @@ function cacheViewOnceMsg(msg) {
   } catch (_) {}
 }
 
-// Commands can use the original full message when WhatsApp's quotedMessage
-// context contains a stripped/partial view-once stub.
-global.getCachedViewOnceMessage = (messageId) => {
-  if (!messageId) return null;
-  const cached = voCache.get(messageId);
-  if (!cached || cached.expires <= Date.now()) {
-    if (cached) voCache.delete(messageId);
-    return null;
-  }
-  return cached.msg;
-};
 /** Reveal a cached view-once message and DM the media to targetJid. */
 async function revealVoToDM(sock, originalMsg, targetJid) {
   const { downloadContentFromMessage } = require('@whiskeysockets/baileys');

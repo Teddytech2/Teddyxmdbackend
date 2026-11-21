@@ -1,91 +1,35 @@
+/**
+ * ViewOnce Command
+ *   .vv  — reveals view-once and forwards to owner's DM (private)
+ *   .vv2 — reveals view-once and sends in the current chat
+ *
+ * No file-size limit: content is streamed to a temp file and sent via file
+ * path so Baileys can upload in chunks regardless of how large the media is.
+ */
 
 const fs = require('fs');
-const {
-    downloadContentFromMessage
-} = require('@whiskeysockets/baileys');
-
-const {
-    createTempFilePath,
-    deleteTempFile
-} = require('../../utils/tempManager');
-
-function unwrapViewOnce(message) {
-    let current = message;
-
-    while (current) {
-        if (current.ephemeralMessage?.message) {
-            current = current.ephemeralMessage.message;
-            continue;
-        }
-
-        if (current.viewOnceMessageV2Extension?.message) {
-            current = current.viewOnceMessageV2Extension.message;
-            continue;
-        }
-
-        if (current.viewOnceMessageV2?.message) {
-            current = current.viewOnceMessageV2.message;
-            continue;
-        }
-
-        if (current.viewOnceMessage?.message) {
-            current = current.viewOnceMessage.message;
-            continue;
-        }
-
-        if (current.documentWithCaptionMessage?.message) {
-            current = current.documentWithCaptionMessage.message;
-            continue;
-        }
-
-        break;
-    }
-
-    for (const type of ['imageMessage', 'videoMessage', 'audioMessage']) {
-        if (current?.[type]) {
-            return {
-                media: current[type],
-                type
-            };
-        }
-    }
-
-    return null;
-}
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { createTempFilePath, deleteTempFile } = require('../../utils/tempManager');
 
 module.exports = {
     name: 'viewonce',
-
-    aliases: [
-        'vv',
-        'vv2',
-        'rvo',
-        'readvo',
-        'readviewonce'
-    ],
-
+    aliases: ['vv', 'vv2', 'rvo', 'readvo', 'readviewonce'],
     category: 'owner',
     ownerOnly: true,
-
-    description: 'Reveal view-once images, videos and audio',
-
-    usage: '.vv (reply to view-once) | .vv2 (reveal in current chat)',
+    description: 'Reveal view-once messages — .vv → owner DM | .vv2 → current chat',
+    usage: '.vv (reply to a view-once) | .vv2 (reply to display here)',
 
     async execute(sock, msg, args, extra) {
-        const chatId = extra.from;
+        const chatId  = extra.from;
+        const selfJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
-        const selfJid =
-            sock.user.id.split(':')[0] + '@s.whatsapp.net';
-
+        // vv2 sends to current chat; vv sends to owner DM
         const sendToCurrentChat = extra.command === 'vv2';
-
-        const targetJid = sendToCurrentChat
-            ? chatId
-            : selfJid;
+        const targetJid = sendToCurrentChat ? chatId : selfJid;
 
         let tmpPath = null;
-
         try {
+            // ── Extract quoted context ─────────────────────────────────────
             const ctx =
                 msg.message?.extendedTextMessage?.contextInfo ||
                 msg.message?.stickerMessage?.contextInfo ||
@@ -97,119 +41,120 @@ module.exports = {
             if (!ctx?.quotedMessage) {
                 return await sock.sendMessage(
                     chatId,
-                    {
-                        text: sendToCurrentChat
-                            ? '👁️ Reply to a view-once image or video with *.vv2*.'
-                            : '👁️ Reply to a view-once image or video with *.vv*. I will send it to your DM.'
+                    { text: sendToCurrentChat
+                        ? '🗑️ Reply to a *view-once* message with *.vv2* to reveal it here.'
+                        : '🗑️ Reply to a *view-once* message with *.vv* to reveal it in your DM.'
                     },
                     { quoted: msg }
                 );
             }
 
-            // First check the quoted message.
-            let result = unwrapViewOnce(ctx.quotedMessage);
+            const quoted = ctx.quotedMessage;
 
-            // Fallback to cached original message, if available.
-            if (!result && ctx.stanzaId) {
-                const cached =
-                    global.getCachedViewOnceMessage?.(ctx.stanzaId);
+            // ── Check that it's actually a view-once ───────────────────────
+            const hasViewOnce =
+                !!quoted.viewOnceMessageV2Extension ||
+                !!quoted.viewOnceMessageV2 ||
+                !!quoted.viewOnceMessage ||
+                !!quoted?.imageMessage?.viewOnce ||
+                !!quoted?.videoMessage?.viewOnce ||
+                !!quoted?.audioMessage?.viewOnce;
 
-                if (cached) {
-                    result = unwrapViewOnce(
-                        cached.message || cached
-                    );
-                }
-            }
-
-            if (!result) {
+            if (!hasViewOnce) {
                 return await sock.sendMessage(
                     chatId,
-                    {
-                        text: '❌ Could not find supported view-once media in that message.'
-                    },
+                    { text: '❌ That is not a view-once message!' },
                     { quoted: msg }
                 );
             }
 
-            const { media, type } = result;
+            // ── Unwrap the actual media message ────────────────────────────
+            let actualMsg = null;
+            let mtype     = null;
 
-            const downloadType =
-                type === 'imageMessage' ? 'image' :
-                type === 'videoMessage' ? 'video' :
-                'audio';
+            if (quoted.viewOnceMessageV2Extension?.message) {
+                actualMsg = quoted.viewOnceMessageV2Extension.message;
+                mtype     = Object.keys(actualMsg)[0];
+            } else if (quoted.viewOnceMessageV2?.message) {
+                actualMsg = quoted.viewOnceMessageV2.message;
+                mtype     = Object.keys(actualMsg)[0];
+            } else if (quoted.viewOnceMessage?.message) {
+                actualMsg = quoted.viewOnceMessage.message;
+                mtype     = Object.keys(actualMsg)[0];
+            } else if (quoted.imageMessage?.viewOnce) {
+                actualMsg = { imageMessage: quoted.imageMessage };
+                mtype     = 'imageMessage';
+            } else if (quoted.videoMessage?.viewOnce) {
+                actualMsg = { videoMessage: quoted.videoMessage };
+                mtype     = 'videoMessage';
+            } else if (quoted.audioMessage?.viewOnce) {
+                actualMsg = { audioMessage: quoted.audioMessage };
+                mtype     = 'audioMessage';
+            }
 
-            const extension =
-                type === 'imageMessage' ? 'jpg' :
-                type === 'videoMessage' ? 'mp4' :
-                'mp4';
-
-            if (
-                !media.mediaKey ||
-                (!media.url && !media.directPath)
-            ) {
-                throw new Error(
-                    'Media download information is missing. The original message may not be cached.'
+            if (!actualMsg || !mtype) {
+                return await sock.sendMessage(
+                    chatId,
+                    { text: '❌ Unsupported view-once message type.' },
+                    { quoted: msg }
                 );
             }
 
-            tmpPath = createTempFilePath('vv', extension);
+            // ── Stream to temp file (no memory limit) ─────────────────────
+            const downloadType =
+                mtype === 'imageMessage' ? 'image' :
+                mtype === 'videoMessage' ? 'video' : 'audio';
 
+            const ext =
+                mtype === 'imageMessage' ? 'jpg' :
+                mtype === 'videoMessage' ? 'mp4' : 'mp4';
+
+            tmpPath = createTempFilePath('vv', ext);
             const writeStream = fs.createWriteStream(tmpPath);
-
-            const downloadStream =
-                await downloadContentFromMessage(media, downloadType);
-
+            const dlStream    = await downloadContentFromMessage(actualMsg[mtype], downloadType);
             await new Promise((resolve, reject) => {
-                downloadStream.pipe(writeStream);
-
+                dlStream.pipe(writeStream);
                 writeStream.on('finish', resolve);
                 writeStream.on('error', reject);
-                downloadStream.on('error', reject);
+                dlStream.on('error', reject);
             });
 
-            const caption = media.caption || '';
+            const caption = actualMsg[mtype]?.caption || '';
 
-            if (type === 'imageMessage') {
+            // ── Send via file path — Baileys streams upload, no size cap ──
+            if (mtype === 'imageMessage') {
                 await sock.sendMessage(targetJid, {
                     image: { url: tmpPath },
-                    caption: caption || '🖼️ ViewOnce Image'
+                    caption: caption || '🖼️ *ViewOnce Image*'
                 });
-            } else if (type === 'videoMessage') {
+            } else if (mtype === 'videoMessage') {
                 await sock.sendMessage(targetJid, {
                     video: { url: tmpPath },
-                    caption: caption || '🎬 ViewOnce Video',
-                    mimetype: media.mimetype || 'video/mp4'
+                    caption: caption || '🎬 *ViewOnce Video*',
+                    mimetype: 'video/mp4'
                 });
             } else {
                 await sock.sendMessage(targetJid, {
                     audio: { url: tmpPath },
-                    mimetype: media.mimetype || 'audio/mp4',
+                    mimetype: actualMsg[mtype]?.mimetype || 'audio/mp4',
                     ptt: false
                 });
             }
 
+            // ── React ✅ in the original chat ──────────────────────────────
             await sock.sendMessage(chatId, {
-                react: {
-                    text: '✅',
-                    key: msg.key
-                }
+                react: { text: '✅', key: msg.key }
             });
 
         } catch (error) {
-            console.error('[VIEWONCE ERROR]', error);
-
             await sock.sendMessage(
                 chatId,
-                {
-                    text: `❌ Failed to reveal view-once: ${error.message || 'Unknown error'}`
-                },
+                { text: `❌ Failed to reveal view-once: ${error.message || 'Unknown error'}` },
                 { quoted: msg }
             );
-
         } finally {
-            if (tmpPath) {
-                deleteTempFile(tmpPath);
-            }
+            // Always clean up the temp file
+            if (tmpPath) deleteTempFile(tmpPath);
         }
     }
 };
