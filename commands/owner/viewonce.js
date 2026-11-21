@@ -1,83 +1,80 @@
 /**
  * ViewOnce Command
- *   .vv  — reveals a quoted view-once message in the bot owner's DM
- *   .vv2 — reveals a quoted view-once message in the current chat
+ * .vv  - reveal to the bot owner's private chat
+ * .vv2 - reveal in the current chat
  *
- * Compatible with Baileys 7 message wrappers, including nested ephemeral and
- * document-with-caption containers. Media is streamed to a temp file so large
- * images/videos do not need to be held entirely in memory.
+ * Uses Baileys' downloadContentFromMessage stream and a Buffer, matching
+ * the simple, reliable download/send flow used by the working reference.
  */
 
-const fs = require('fs');
-const { pipeline } = require('stream/promises');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-const { createTempFilePath, deleteTempFile } = require('../../utils/tempManager');
 
-const MEDIA_TYPES = {
-    imageMessage: { download: 'image', extension: 'jpg' },
-    videoMessage: { download: 'video', extension: 'mp4' },
-    audioMessage: { download: 'audio', extension: 'ogg' },
-};
+function getQuotedMessage(msg) {
+    const message = msg.message || {};
+    const contexts = [
+        message.extendedTextMessage?.contextInfo,
+        message.imageMessage?.contextInfo,
+        message.videoMessage?.contextInfo,
+        message.stickerMessage?.contextInfo,
+        message.buttonsResponseMessage?.contextInfo,
+        message.listResponseMessage?.contextInfo,
+        message.templateButtonReplyMessage?.contextInfo,
+        message.interactiveResponseMessage?.contextInfo,
+    ];
+    const context = contexts.find(item => item?.quotedMessage);
+    return context?.quotedMessage || null;
+}
 
-// WhatsApp can nest the actual message under one or more of these wrappers.
-const MESSAGE_WRAPPERS = [
-    'ephemeralMessage',
-    'viewOnceMessageV2Extension',
-    'viewOnceMessageV2',
-    'viewOnceMessage',
-    'documentWithCaptionMessage',
-    'deviceSentMessage',
-];
-
-function findContextInfo(message) {
-    if (!message || typeof message !== 'object') return null;
-    const queue = [message];
+// WhatsApp can wrap the media in view-once, ephemeral, or caption wrappers.
+// Walk only known message-container fields; don't mistake arbitrary metadata
+// keys (e.g. messageContextInfo) for the actual media type.
+function findViewOnceMedia(root) {
+    const wrapperKeys = [
+        'viewOnceMessageV2',
+        'viewOnceMessageV2Extension',
+        'viewOnceMessage',
+        'ephemeralMessage',
+        'documentWithCaptionMessage',
+        'deviceSentMessage',
+    ];
+    const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage'];
+    const queue = [{ node: root, insideViewOnce: false }];
     const seen = new Set();
 
     while (queue.length) {
-        const current = queue.shift();
-        if (!current || typeof current !== 'object' || seen.has(current)) continue;
-        seen.add(current);
+        const { node, insideViewOnce } = queue.shift();
+        if (!node || typeof node !== 'object' || seen.has(node)) continue;
+        seen.add(node);
 
-        for (const value of Object.values(current)) {
-            if (!value || typeof value !== 'object') continue;
-            if (value.contextInfo?.quotedMessage) return value.contextInfo;
-            if (value.message && typeof value.message === 'object') queue.push(value.message);
+        for (const type of mediaTypes) {
+            const media = node[type];
+            if (media && (insideViewOnce || media.viewOnce)) {
+                return { media, type };
+            }
+        }
+
+        for (const key of wrapperKeys) {
+            const wrapper = node[key];
+            const wrapped = wrapper?.message;
+            if (wrapped && typeof wrapped === 'object') {
+                const isViewOnceWrapper = key.startsWith('viewOnceMessage');
+                queue.push({
+                    node: wrapped,
+                    insideViewOnce: insideViewOnce || isViewOnceWrapper,
+                });
+            }
+        }
+        if (node.message && typeof node.message === 'object') {
+            queue.push({ node: node.message, insideViewOnce });
         }
     }
     return null;
 }
 
-function extractViewOnceMedia(quotedMessage) {
-    if (!quotedMessage || typeof quotedMessage !== 'object') return null;
-
-    const queue = [quotedMessage];
-    const seen = new Set();
-
-    while (queue.length) {
-        const current = queue.shift();
-        if (!current || typeof current !== 'object' || seen.has(current)) continue;
-        seen.add(current);
-
-        for (const [key, value] of Object.entries(current)) {
-            if (!value || typeof value !== 'object') continue;
-
-            if (MEDIA_TYPES[key] && value.viewOnce) {
-                return { type: key, media: { ...value, viewOnce: false } };
-            }
-
-            if (MESSAGE_WRAPPERS.includes(key) && value.message) {
-                const inner = value.message;
-                for (const [mediaType, media] of Object.entries(inner)) {
-                    if (MEDIA_TYPES[mediaType] && media && typeof media === 'object') {
-                        return { type: mediaType, media: { ...media, viewOnce: false } };
-                    }
-                }
-                queue.push(inner);
-            }
-        }
-    }
-    return null;
+async function streamToBuffer(stream) {
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks);
 }
 
 module.exports = {
@@ -89,26 +86,17 @@ module.exports = {
     usage: '.vv (reply to a view-once) | .vv2 (reply to display here)',
 
     async execute(sock, msg, args, extra = {}) {
-        const chatId = extra.from || msg.key?.remoteJid;
+        const chatId = extra.from || msg.key.remoteJid;
+        const command = String(extra.command || 'vv').toLowerCase();
+        const sendToCurrentChat = command === 'vv2';
         const selfJid = sock.user?.id
             ? `${sock.user.id.split(':')[0].split('@')[0]}@s.whatsapp.net`
-            : null;
-        const sendToCurrentChat = String(extra.command || '').toLowerCase() === 'vv2';
+            : chatId;
         const targetJid = sendToCurrentChat ? chatId : selfJid;
 
-        if (!chatId) return;
-        if (!targetJid) {
-            return sock.sendMessage(chatId, {
-                text: '❌ I could not determine the bot account JID. Please reconnect the bot.'
-            }, { quoted: msg });
-        }
-
-        let tmpPath = null;
         try {
-            const contextInfo = findContextInfo(msg.message);
-            const quotedMessage = contextInfo?.quotedMessage;
-
-            if (!quotedMessage) {
+            const quoted = getQuotedMessage(msg);
+            if (!quoted) {
                 return await sock.sendMessage(chatId, {
                     text: sendToCurrentChat
                         ? '🗑️ Reply to a *view-once* message with *.vv2* to reveal it here.'
@@ -116,49 +104,45 @@ module.exports = {
                 }, { quoted: msg });
             }
 
-            const found = extractViewOnceMedia(quotedMessage);
+            const found = findViewOnceMedia(quoted);
             if (!found) {
                 return await sock.sendMessage(chatId, {
-                    text: '❌ I could not find supported view-once image, video, or audio media in that reply.'
+                    text: '❌ Please reply directly to a view-once image, video, or audio message.'
                 }, { quoted: msg });
             }
 
-            const mediaConfig = MEDIA_TYPES[found.type];
-            tmpPath = createTempFilePath('vv', mediaConfig.extension);
-            const downloadStream = await downloadContentFromMessage(found.media, mediaConfig.download);
-            const writeStream = fs.createWriteStream(tmpPath);
-            await pipeline(downloadStream, writeStream);
+            const { media, type } = found;
+            const downloadType = type === 'imageMessage' ? 'image'
+                : type === 'videoMessage' ? 'video' : 'audio';
+            const buffer = await streamToBuffer(
+                await downloadContentFromMessage(media, downloadType)
+            );
 
-            const caption = found.media.caption || '';
-            if (found.type === 'imageMessage') {
-                await sock.sendMessage(targetJid, {
-                    image: { url: tmpPath },
-                    caption: caption || '🖼️ *ViewOnce Image*'
-                });
-            } else if (found.type === 'videoMessage') {
-                await sock.sendMessage(targetJid, {
-                    video: { url: tmpPath },
-                    caption: caption || '🎬 *ViewOnce Video*',
-                    mimetype: found.media.mimetype || 'video/mp4'
-                });
+            if (!buffer.length) throw new Error('Baileys returned an empty media stream');
+
+            const caption = media.caption || '';
+            let payload;
+            if (type === 'imageMessage') {
+                payload = { image: buffer, caption };
+            } else if (type === 'videoMessage') {
+                payload = { video: buffer, caption, mimetype: media.mimetype || 'video/mp4' };
             } else {
-                await sock.sendMessage(targetJid, {
-                    audio: { url: tmpPath },
-                    mimetype: found.media.mimetype || 'audio/ogg; codecs=opus',
-                    ptt: false
-                });
+                payload = {
+                    audio: buffer,
+                    mimetype: media.mimetype || 'audio/ogg; codecs=opus',
+                    ptt: !!media.ptt,
+                };
             }
 
+            await sock.sendMessage(targetJid, payload);
             await sock.sendMessage(chatId, {
                 react: { text: '✅', key: msg.key }
             });
         } catch (error) {
-            console.error('[VIEWONCE] Reveal failed:', error);
+            console.error('[VIEWONCE] Failed:', error);
             await sock.sendMessage(chatId, {
                 text: `❌ Failed to reveal view-once: ${error.message || 'Unknown error'}`
             }, { quoted: msg });
-        } finally {
-            if (tmpPath) deleteTempFile(tmpPath);
         }
     }
 };
