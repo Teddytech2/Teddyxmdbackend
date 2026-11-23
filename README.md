@@ -1,2 +1,0 @@
-# Teddyxmdbackend
-Uploaded using Teddyxcloud
