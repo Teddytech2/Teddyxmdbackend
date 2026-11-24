@@ -10,7 +10,6 @@ const { jidDecode, jidEncode } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { cacheOriginalMessage } = require('./utils/viewOnceCache');
 
 
 // TEDDY-XMD ULTRA shared command reply frame. Existing framed messages are
@@ -63,11 +62,63 @@ const voCache = global.viewOnceCache || (global.viewOnceCache = new Map());
 const getSelfJid = (sock) => sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
 
+function getViewOnceMediaQuality(message) {
+  // Score the cached payload, not just the outer message. A later quoted
+  // placeholder/stub must never replace a previously received full message.
+  const stack = [message];
+  const seen = new Set();
+  let best = 0;
+
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+
+    for (const type of ['imageMessage', 'videoMessage', 'audioMessage']) {
+      const media = current[type];
+      if (!media) continue;
+      let score = 10;
+      if (media.mediaKey && Buffer.from(media.mediaKey).length) score += 50;
+      if (media.url) score += 20;
+      if (media.directPath) score += 20;
+      if (media.fileEncSha256) score += 5;
+      if (media.fileSha256) score += 5;
+      if (media.viewOnce) score += 10;
+      best = Math.max(best, score);
+    }
+
+    for (const value of Object.values(current)) {
+      if (value && typeof value === 'object') stack.push(value);
+    }
+  }
+
+  return best;
+}
+
 function cacheViewOnceMsg(msg) {
   try {
-    // Preserve a better earlier copy if a later event for the same message
-    // contains only a WhatsApp view-once placeholder/stub.
-    cacheOriginalMessage(voCache, msg, 500);
+    const id = msg?.key?.id;
+    if (!id || !msg.message) return;
+
+    const cacheKey = String(id);
+    const existing = voCache.get(cacheKey);
+    const incomingQuality = getViewOnceMediaQuality(msg.message);
+    const existingQuality = existing
+      ? getViewOnceMediaQuality(existing.message)
+      : -1;
+
+    // Keep the most complete media payload for this message ID. This is
+    // important because WhatsApp may later emit a quoted/stub form that has
+    // no mediaKey, URL, or directPath.
+    if (!existing || incomingQuality >= existingQuality) {
+      voCache.set(cacheKey, msg);
+    }
+
+    // Keep the cache bounded; remove oldest entries first.
+    while (voCache.size > 500) {
+      const firstKey = voCache.keys().next().value;
+      voCache.delete(firstKey);
+    }
   } catch (error) {
     console.error('[VIEWONCE CACHE ERROR]', error?.message || error);
   }

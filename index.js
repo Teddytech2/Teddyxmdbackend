@@ -193,7 +193,6 @@ const {
 } = require('./utils/teddyDb/auth-state')
 const sessionServer = require('./utils/teddyDb/sessionServer')
 const { wrapSockSanitized } = require('./utils/sanitizeUserText')
-const { cacheOriginalMessage } = require('./utils/viewOnceCache')
 
 process.env.PUPPETEER_SKIP_DOWNLOAD = 'true'
 process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'true'
@@ -1293,7 +1292,7 @@ async function startTeddyxBot() {
         version,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: ['Ubuntu', 'Chrome', '20.0.04'],
+        browser: ['Mac OS', 'Chrome', '10.15.7'],
         auth: {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'fatal' }).child({ level: 'fatal' }))
@@ -1778,19 +1777,27 @@ if (groupInvites.length > 0) {
 
     // ── Message Handler ────────────────────────────────────────────────────────
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
-        // Cache raw messages before any other handler unwraps or mutates them.
-        // Include append/history events as well as notify events, and retain a
-        // full media record if a later event for the same ID is only a stub.
+        if (type !== 'notify') return
+
+        // Cache the untouched messages.upsert payload BEFORE any other handler
+        // unwraps or mutates msg.message. .vv/.vv2 later resolves contextInfo.stanzaId
+        // against this exact original message and key for downloadMediaMessage().
+        // The handler-level cache alone can miss messages when another pipeline
+        // normalizes the message before handler.handleMessage() is called.
         try {
             const voCache = global.viewOnceCache || (global.viewOnceCache = new Map())
             for (const original of messages || []) {
-                cacheOriginalMessage(voCache, original, 500)
+                const originalId = original?.key?.id
+                if (!originalId || !original?.message) continue
+                voCache.set(String(originalId), original)
+            }
+            while (voCache.size > 500) {
+                voCache.delete(voCache.keys().next().value)
             }
         } catch (cacheError) {
             console.error('[VIEWONCE RAW CACHE ERROR]', cacheError?.message || cacheError)
         }
 
-        if (type !== 'notify') return
         messages = messages.filter((msg) => !replayDrain.isReplayMessage(msg))
         if (messages.length === 0) return
 

@@ -22,21 +22,6 @@ const {
     deleteTempFile
 } = require('../../utils/tempManager');
 
-function hasDownloadLocator(media) {
-    return Boolean(media?.url || media?.directPath);
-}
-
-function withTimeout(promise, ms, label) {
-    let timer;
-    return Promise.race([
-        Promise.resolve(promise),
-        new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.ceil(ms / 1000)} seconds`)), ms);
-            timer.unref?.();
-        })
-    ]).finally(() => clearTimeout(timer));
-}
-
 function findQuotedContext(content) {
     const stack = [content];
     const visited = new Set();
@@ -65,11 +50,8 @@ function findQuotedContext(content) {
 }
 
 function extractMedia(quoted) {
-    // Accept either a raw proto IMessage or a complete WAMessage. Newer
-    // Baileys builds may mark the outer key as isViewOnce without retaining
-    // the nested media.viewOnce boolean.
-    let current = quoted?.message || quoted;
-    let isViewOnce = Boolean(quoted?.key?.isViewOnce || quoted?.isViewOnce);
+    let current = quoted;
+    let isViewOnce = false;
 
     // Unwrap nested WhatsApp message containers.
     for (let i = 0; i < 10 && current; i++) {
@@ -167,56 +149,45 @@ module.exports = {
                 }, { quoted: msg });
             }
 
-            // Resolve the original message by stanza ID. The cache can contain
-            // an earlier full payload and the quote can contain a later stub, so
-            // try both instead of blindly preferring whichever exists.
+            // Prefer the complete original message captured by handler.js.
+            // Quoted contextInfo contains the quoted payload but not the full
+            // Baileys message key required for reliable media re-upload.
             const originalMessageId = ctx.stanzaId;
             const cachedOriginal = originalMessageId && global.viewOnceCache instanceof Map
                 ? global.viewOnceCache.get(String(originalMessageId))
                 : null;
-            const cachedExtracted = extractMedia(cachedOriginal);
-            const quotedExtracted = extractMedia({
-                key: { isViewOnce: Boolean(ctx.isViewOnce || ctx.key?.isViewOnce) },
-                message: ctx.quotedMessage
-            });
-            const extractionScore = (item) => {
-                if (!item) return 0;
-                if (hasDownloadLocator(item.media) && item.media.mediaKey) return 3;
-                if (item.media.mediaKey) return 2;
-                if (hasDownloadLocator(item.media)) return 1;
-                return 0;
-            };
-            const extracted = extractionScore(quotedExtracted) > extractionScore(cachedExtracted)
-                ? quotedExtracted
-                : (cachedExtracted || quotedExtracted);
+            const quotedPayload = cachedOriginal?.message || ctx.quotedMessage;
+
+            // Extract the actual media from the original message when cached.
+            const extracted = extractMedia(quotedPayload);
 
             if (!extracted) {
-                const isViewOnceStub = Boolean(
-                    ctx.isViewOnce ||
-                    ctx.key?.isViewOnce ||
-                    ctx.quotedMessage?.messageStubType ||
-                    ctx.quotedMessage?.imageMessage?.viewOnce ||
-                    ctx.quotedMessage?.videoMessage?.viewOnce ||
-                    ctx.quotedMessage?.audioMessage?.viewOnce ||
-                    ctx.quotedMessage?.viewOnceMessage ||
-                    ctx.quotedMessage?.viewOnceMessageV2 ||
-                    ctx.quotedMessage?.viewOnceMessageV2Extension
-                );
                 return await sock.sendMessage(chatId, {
-                    text: isViewOnceStub
-                        ? '❌ WhatsApp supplied only a View Once placeholder, not the original media payload. The bot cannot download it because this quote and its cache entry contain no media data. Test with a new View Once message while the bot is connected.'
-                        : '❌ That message is not a supported View Once image, video, or audio.'
+                    text: '❌ That message is not a supported View Once image, video, or audio.'
                 }, { quoted: msg });
             }
 
-            let { message, type, media } = extracted;
+            const { message, type, media } = extracted;
+
+            const downloadType = {
+                imageMessage: 'image',
+                videoMessage: 'video',
+                audioMessage: 'audio'
+            }[type];
+
+            const extension = {
+                imageMessage: 'jpg',
+                videoMessage: 'mp4',
+                audioMessage: 'mp4'
+            }[type];
 
             await sock.sendMessage(chatId, {
                 text: '⏳ Processing View Once media...'
             }, { quoted: msg });
 
-            // Use the exact original key whenever available. This preserves
-            // remoteJid/fromMe/participant for WhatsApp's media retry protocol.
+            // Use the exact original Baileys key whenever the handler cache
+            // has it. This preserves remoteJid/fromMe/participant and avoids
+            // guessing those fields from the reply's contextInfo.
             const quotedKey = cachedOriginal?.key || {
                 remoteJid: ctx.remoteJid || chatId,
                 fromMe: Boolean(ctx.participant && ctx.participant === selfJid),
@@ -224,65 +195,30 @@ module.exports = {
                 ...(ctx.participant ? { participant: ctx.participant } : {})
             };
 
-            // Important: downloadMediaMessage's reuploadRequest callback is
-            // intended for expired media URLs (HTTP 404/410). It cannot repair
-            // an object that has no url/directPath at all. Ask WhatsApp for a
-            // media re-upload first when we have a mediaKey, then use the
-            // refreshed media record returned/mutated by Baileys.
-            if (!hasDownloadLocator(media) && media.mediaKey && typeof sock.updateMediaMessage === 'function') {
-                // Use the media-bearing content chosen above, but preserve
-                // the original full key when the cache has it. A cached stub
-                // must not be paired with a richer quoted media payload.
-                const originalForRefresh = {
-                    key: cachedOriginal?.key || quotedKey,
-                    message
-                };
-
-                try {
-                    const refreshed = await withTimeout(
-                        sock.updateMediaMessage(originalForRefresh),
-                        15000,
-                        'WhatsApp media re-upload request'
-                    );
-                    const refreshedMessage = refreshed?.message ? refreshed : originalForRefresh;
-                    const refreshedExtracted = extractMedia(refreshedMessage);
-                    if (refreshedExtracted && hasDownloadLocator(refreshedExtracted.media)) {
-                        message = refreshedExtracted.message;
-                        media = refreshedExtracted.media;
-                        type = refreshedExtracted.type;
-                        console.log(`[VV-REUPLOAD] Recovered media locator for ${originalMessageId || 'quoted message'}`);
-                    } else {
-                        // Some Baileys forks mutate the original WAMessage in
-                        // place but return undefined; inspect it once more.
-                        const mutatedExtracted = extractMedia(originalForRefresh);
-                        if (mutatedExtracted && hasDownloadLocator(mutatedExtracted.media)) {
-                            message = mutatedExtracted.message;
-                            media = mutatedExtracted.media;
-                            type = mutatedExtracted.type;
-                            console.log(`[VV-REUPLOAD] Recovered media locator from updated message ${originalMessageId || ''}`);
-                        }
-                    }
-                } catch (refreshError) {
-                    console.warn('[VV-REUPLOAD] WhatsApp re-upload attempt failed:', refreshError?.message || refreshError);
-                }
+            // Match the known-working bot implementation: pass the
+            // unwrapped media container and original message key. Log missing
+            // encryption metadata before download so empty-key failures can
+            // be traced to the received payload/cache rather than browser ID.
+            if (!media.mediaKey || !Buffer.from(media.mediaKey).length) {
+                console.warn('[VV] Media payload has no mediaKey', {
+                    messageId: quotedKey.id,
+                    mediaType: type,
+                    hasUrl: Boolean(media.url),
+                    hasDirectPath: Boolean(media.directPath),
+                    cacheHit: Boolean(cachedOriginal)
+                });
             }
-
-            if (!hasDownloadLocator(media)) {
-                const reason = media.mediaKey
-                    ? 'WhatsApp did not return a media URL/directPath after the re-upload request.'
-                    : 'WhatsApp supplied a view-once stub without a mediaKey, URL, or directPath.';
-                const error = new Error(reason);
-                error.code = 'VV_MEDIA_STUB';
-                throw error;
-            }
-
+            // Match the working reference implementation: pass the
+            // unwrapped media container together with the original WAMessage
+            // key. Keep the complete key from the cache whenever available.
             const mediaStream = await downloadMediaMessage(
-                { key: quotedKey, message },
+                { message, key: quotedKey },
                 'stream',
                 {},
                 {
                     logger: console,
-                    reuploadRequest: (key) => sock.updateMediaMessage(key)
+                    reuploadRequest: async (messageToRefresh) =>
+                        sock.updateMediaMessage(messageToRefresh)
                 }
             );
 
@@ -291,7 +227,6 @@ module.exports = {
             }
 
             // Save to a temporary file.
-            const extension = type === 'imageMessage' ? 'jpg' : 'mp4';
             tmpPath = createTempFilePath('vv', extension);
 
             const writeStream = fs.createWriteStream(tmpPath);
@@ -347,9 +282,7 @@ module.exports = {
 
             let errorMessage = '❌ Failed to reveal View Once media.';
 
-            if (error.code === 'VV_MEDIA_STUB') {
-                errorMessage = '❌ WhatsApp did not provide downloadable View Once media.';
-            } else if (/decrypt|media key/i.test(error.message || '')) {
+            if (/decrypt|media key/i.test(error.message || '')) {
                 errorMessage =
                     '❌ Media decryption failed. The media key may be invalid or expired.';
             } else if (/expired|not found/i.test(error.message || '')) {
