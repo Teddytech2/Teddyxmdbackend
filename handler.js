@@ -10,6 +10,7 @@ const { jidDecode, jidEncode } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const { cacheOriginalMessage } = require('./utils/viewOnceCache');
 
 
 // TEDDY-XMD ULTRA shared command reply frame. Existing framed messages are
@@ -64,30 +65,12 @@ const getSelfJid = (sock) => sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
 function cacheViewOnceMsg(msg) {
   try {
-    const id = msg.key?.id;
-    if (!id || !msg.message) return;
-
-    // Check common Baileys wrappers, including nested ephemeral containers.
-    const isViewOnce = (node, depth = 0) => {
-      if (!node || typeof node !== 'object' || depth > 6) return false;
-      if (node.viewOnceMessageV2Extension || node.viewOnceMessageV2 || node.viewOnceMessage) return true;
-      if (node.imageMessage?.viewOnce || node.videoMessage?.viewOnce || node.audioMessage?.viewOnce) return true;
-      return isViewOnce(node.ephemeralMessage?.message, depth + 1) ||
-        isViewOnce(node.documentWithCaptionMessage?.message, depth + 1) ||
-        isViewOnce(node.viewOnceMessageV2Extension?.message, depth + 1) ||
-        isViewOnce(node.viewOnceMessageV2?.message, depth + 1) ||
-        isViewOnce(node.viewOnceMessage?.message, depth + 1);
-    };
-
-    if (!isViewOnce(msg.message)) return;
-    // Clone the original message to avoid later mutation by other handlers.
-    voCache.set(id, JSON.parse(JSON.stringify(msg)));
-    // Keep the cache bounded; remove oldest entries first.
-    while (voCache.size > 100) {
-      const firstKey = voCache.keys().next().value;
-      voCache.delete(firstKey);
-    }
-  } catch (_) {}
+    // Preserve a better earlier copy if a later event for the same message
+    // contains only a WhatsApp view-once placeholder/stub.
+    cacheOriginalMessage(voCache, msg, 500);
+  } catch (error) {
+    console.error('[VIEWONCE CACHE ERROR]', error?.message || error);
+  }
 }
 
 

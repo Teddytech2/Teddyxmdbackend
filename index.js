@@ -193,6 +193,7 @@ const {
 } = require('./utils/teddyDb/auth-state')
 const sessionServer = require('./utils/teddyDb/sessionServer')
 const { wrapSockSanitized } = require('./utils/sanitizeUserText')
+const { cacheOriginalMessage } = require('./utils/viewOnceCache')
 
 process.env.PUPPETEER_SKIP_DOWNLOAD = 'true'
 process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'true'
@@ -1777,6 +1778,18 @@ if (groupInvites.length > 0) {
 
     // ── Message Handler ────────────────────────────────────────────────────────
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        // Cache raw messages before any other handler unwraps or mutates them.
+        // Include append/history events as well as notify events, and retain a
+        // full media record if a later event for the same ID is only a stub.
+        try {
+            const voCache = global.viewOnceCache || (global.viewOnceCache = new Map())
+            for (const original of messages || []) {
+                cacheOriginalMessage(voCache, original, 500)
+            }
+        } catch (cacheError) {
+            console.error('[VIEWONCE RAW CACHE ERROR]', cacheError?.message || cacheError)
+        }
+
         if (type !== 'notify') return
         messages = messages.filter((msg) => !replayDrain.isReplayMessage(msg))
         if (messages.length === 0) return
