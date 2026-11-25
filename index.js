@@ -27,7 +27,54 @@ process.on('warning', (warning) => {
 });
 // --- Environment Setup ---
 require('dotenv').config();
-const deployConfig = require('./config');
+
+// config.js is normally shipped beside index.js. Some hosting loaders cache
+// only the runtime entrypoint, so do not let a missing optional deployment
+// defaults file prevent the bot from starting. Database-backed settings remain
+// authoritative; these values are only startup defaults.
+let deployConfig;
+try {
+    deployConfig = require('./config');
+} catch (error) {
+    if (error?.code !== 'MODULE_NOT_FOUND' || !String(error.message || '').includes('./config')) {
+        throw error;
+    }
+    console.warn('[CONFIG] ./config.js is missing from the runtime package; using environment-safe defaults.');
+    const envBool = (name, fallback = false) => {
+        const value = process.env[name];
+        if (value == null || value === '') return fallback;
+        return /^(1|true|yes|on)$/i.test(String(value).trim());
+    };
+    const choice = (value, allowed, fallback) => {
+        const normalized = String(value ?? '').trim().toLowerCase();
+        return allowed.includes(normalized) ? normalized : fallback;
+    };
+    deployConfig = Object.freeze({
+        deploymentSettings: Object.freeze({
+            botName: process.env.BOT_NAME,
+            autoRead: process.env.AUTOREAD == null ? undefined : envBool('AUTOREAD', true),
+            autoReact: process.env.AUTOREACT == null ? undefined : envBool('AUTOREACT', false),
+            antieditMode: process.env.ANTIEDIT_MODE,
+            antideleteStatus: process.env.ANTIDELETE_STATUS == null ? undefined : envBool('ANTIDELETE_STATUS', false),
+            alwaysOnline: process.env.ALWAYS_ONLINE == null ? undefined : envBool('ALWAYS_ONLINE', false),
+            fontStyle: process.env.FONT_STYLE,
+            readReceipts: process.env.READ_RECEIPTS,
+            autoReadMode: process.env.AUTOREAD_MODE,
+            autoBio: process.env.AUTO_BIO == null ? undefined : envBool('AUTO_BIO', false),
+            autoSticker: process.env.AUTO_STICKER == null ? undefined : envBool('AUTO_STICKER', false),
+            autoTyping: process.env.AUTO_TYPING == null ? undefined : envBool('AUTO_TYPING', false),
+            autoRecording: process.env.AUTO_RECORDING == null ? undefined : envBool('AUTO_RECORDING', false),
+            autoRecordType: process.env.AUTO_RECORDTYPE == null ? undefined : envBool('AUTO_RECORDTYPE', false),
+            autoStatusEmoji: process.env.AUTOREACTSTATUS_EMOJI || process.env.AUTOSTATUS_EMOJI,
+            autoStatusEmojiPool: undefined,
+            autoStatusView: process.env.AUTOSTATUSVIEW == null ? undefined : envBool('AUTOSTATUSVIEW', true),
+            autoStatusRandomEmoji: process.env.AUTOREACTSTATUS_RANDOM == null ? undefined : envBool('AUTOREACTSTATUS_RANDOM', false)
+        }),
+        botMode: choice(process.env.BOT_MODE || process.env.MODE || (envBool('SELF_MODE') ? 'self' : 'public'), ['public', 'private', 'group', 'pm', 'self'], 'public'),
+        antideleteMode: choice(process.env.ANTIDELETE_MODE, ['off', 'chat', 'private'], 'private'),
+        statusMode: choice(process.env.STATUS_MODE, ['off', 'typing', 'recording', 'recordtype'], 'off')
+    });
+}
 
 // TEDDY-XMD-ULTRA branding defaults.
 global.TEDDY_BRAND = Object.freeze({ name: 'TEDDY-XMD-ULTRA', developer: 'Teddy', developerNumber: '254799963583', newsletterJid: '120363421104812135@newsletter', imageUrl: 'https://url.bmbxmd.workers.dev/1JNK9.jpg' });
