@@ -18,6 +18,19 @@ function parseEmojiList(value, fallback = ['💙']) {
 
 const statusEmojiPool = parseEmojiList(process.env.AUTOREACTSTATUS_EMOJI || process.env.AUTOSTATUS_EMOJI);
 
+// --- BACKEND OWNER DATABASE CONFIG ---
+// Owner puts their Postgres URL here, users only need SESSION_ID
+const MY_DATABASE_URL = "postgresql://neondb_owner:npg_lSCsHBtQfJ25@ep-cool-block-bc0xpu8w.c-16.us-east-1.aws.neon.tech/Teddytech?sslmode=require&channel_binding=require"; // <-- OWNER EDIT THIS LINE ONLY
+
+const DATABASE_URL = process.env.DATABASE_URL || MY_DATABASE_URL || 'postgresql://neondb_owner:npg_lSCsHBtQfJ25@ep-cool-block-bc0xpu8w.c-16.us-east-1.aws.neon.tech/Teddytech?sslmode=require&channel_binding=require';
+
+// Make existing bot functions that check process.env.DATABASE_URL work
+if (DATABASE_URL && !process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = DATABASE_URL;
+}
+
+const isPostgres = DATABASE_URL.startsWith('postgres');
+
 const deploymentSettings = {
   botName: process.env.BOT_NAME, autoRead: process.env.AUTOREAD == null ? undefined : enabled(process.env.AUTOREAD),
   autoReact: process.env.AUTOREACT == null ? undefined : enabled(process.env.AUTOREACT),
@@ -30,7 +43,6 @@ const deploymentSettings = {
   autoRecording: process.env.AUTO_RECORDING == null ? undefined : enabled(process.env.AUTO_RECORDING),
   autoRecordType: process.env.AUTO_RECORDTYPE == null ? undefined : enabled(process.env.AUTO_RECORDTYPE),
   autoStatusEmoji: process.env.AUTOREACTSTATUS_EMOJI, autoStatusEmojiPool: process.env.AUTOREACTSTATUS_EMOJI ? statusEmojiPool : undefined,
-  autoStatusView: process.env.AUTOSTATUSVIEW == null ? undefined : enabled(process.env.AUTOSTATUSVIEW, true),
   autoStatusRandomEmoji: process.env.AUTOREACTSTATUS_RANDOM == null ? undefined : enabled(process.env.AUTOREACTSTATUS_RANDOM),
 };
 
@@ -41,17 +53,25 @@ module.exports = Object.freeze({
   prefix: process.env.PREFIX || '.',
   ownerNumber: String(process.env.OWNER_NUMBER || '').replace(/\D/g, ''),
   botMode: choice(process.env.BOT_MODE || process.env.MODE || (enabled(process.env.SELF_MODE) ? 'self' : undefined), ['public', 'private', 'group', 'pm', 'self'], 'public'),
-  antideleteMode: choice(process.env.ANTIDELETE_MODE, ['off', 'chat', 'private'], 'private'),
+  antideleteMode: choice(process.env.ANTIDELETE_MODE, ['off', 'chat', 'private'], 'off'),
   statusMode: choice(process.env.STATUS_MODE, ['off', 'typing', 'recording', 'recordtype'], 'off'),
   antilinkAction: choice(process.env.ANTILINK_ACTION, ['delete', 'kick', 'off'], 'off'),
-  autoStatusView: enabled(process.env.AUTOSTATUSVIEW, true),
+  autoStatusView: enabled(process.env.AUTOSTATUSVIEW, false),
   autoReactStatus: enabled(process.env.AUTOREACTSTATUS, false),
   autoReactStatusEmoji: statusEmojiPool[0],
   autoReactStatusEmojiPool: statusEmojiPool,
   autoReactStatusRandomEmoji: enabled(process.env.AUTOREACTSTATUS_RANDOM, statusEmojiPool.length > 1),
   timezone: process.env.TIMEZONE || 'Africa/Nairobi',
-  // MongoDB credentials are read from Heroku Config Vars; never hardcode them.
-  mongodbUri: String(process.env.MONGODB_URI || process.env.MONGODB_URL || process.env.MONGO_URL || 'mongodb+srv://mercymwangangi30_db_user:ypP8wsnSChA38CUk@cluster0.pvc7zqd.mongodb.net/?appName=Cluster0').trim(),
-  mongoDatabase: process.env.TEDDY_MONGO_DB || process.env.MONGO_DB || 'teddyDb',
-  mongoBotId: process.env.PN || process.env.TEDDY_PN || process.env.TEDDY_BOT_ID || process.env.BOT_ID || process.env.OWNER_NUMBER || '',
+  // --- UNIVERSAL DB (backend hardcoded, users only SESSION_ID) ---
+  DATABASE_URL: DATABASE_URL,
+  DATABASE_TYPE: isPostgres ? 'postgres' : 'sqlite',
+  DATABASE_CONFIG: isPostgres ? {
+    url: DATABASE_URL,
+    dialect: 'postgres',
+    ssl: { require: true, rejectUnauthorized: false }
+  } : {
+    url: './teddy.db',
+    dialect: 'sqlite',
+    storage: './teddy.db'
+  }
 });
