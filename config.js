@@ -20,9 +20,9 @@ const statusEmojiPool = parseEmojiList(process.env.AUTOREACTSTATUS_EMOJI || proc
 
 // --- BACKEND OWNER DATABASE CONFIG ---
 // Owner puts their Postgres URL here, users only need SESSION_ID
-const MY_DATABASE_URL = "DATABASE_URL='postgresql://neondb_owner:npg_lSCsHBtQfJ25@ep-cool-block-bc0xpu8w.c-16.us-east-1.aws.neon.tech/Teddytech?sslmode=require&channel_binding=require"; // <-- OWNER EDIT THIS LINE ONLY
+const MY_DATABASE_URL = "postgresql://neondb_owner:npg_lSCsHBtQfJ25@ep-cool-block-bc0xpu8w.c-16.us-east-1.aws.neon.tech/Teddytech?sslmode=require&channel_binding=require"; // <-- OWNER EDIT THIS LINE ONLY
 
-const DATABASE_URL = process.env.DATABASE_URL || MY_DATABASE_URL || '';
+const DATABASE_URL = process.env.DATABASE_URL || MY_DATABASE_URL || 'postgresql://neondb_owner:npg_lSCsHBtQfJ25@ep-cool-block-bc0xpu8w.c-16.us-east-1.aws.neon.tech/Teddytech?sslmode=require&channel_binding=require';
 
 // Make existing bot functions that check process.env.DATABASE_URL work
 if (DATABASE_URL && !process.env.DATABASE_URL) {
