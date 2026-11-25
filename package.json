@@ -25,7 +25,7 @@
     "npm": ">=10.x"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "git+https://github.com/QadeerXTech/QadeerXTechxbaileys.git#3c992346461f48493924caf9ee00880b51aa5cf4",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "awesome-phonenumber": "^7.8.0",
     "axios": "^1.19.0",
     "better-sqlite3": "11.10.0",
