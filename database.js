@@ -212,8 +212,10 @@ let authMirrorRunning = null;
 let lastAuthMirror = null;
 let shuttingDown = false;
 
-// SQLite is always the live source of truth. Remote adapters mirror writes in
-// the background and never block a command when a remote database is offline.
+// SQLite remains the synchronous local runtime/cache for legacy bot features.
+// Bot settings use PostgreSQL-first persistence when DATABASE_URL is configured;
+// a failed/unavailable PostgreSQL write falls back to SQLite and is queued for
+// retry. Other remote-mirrored entities retain their existing write-through path.
 const REMOTE_IDENTITY_ARGUMENTS = {
   mirrorBotSetting: [0],
   mirrorGroupSettings: [0],
@@ -1707,11 +1709,61 @@ const getBotSetting = (key) => {
   return cloneIfMutable(value);
 };
 
-const setBotSetting = (key, value) => {
+// Serialize writes per setting key so a slow PostgreSQL request cannot allow
+// an older value to overwrite a newer one. The in-memory cache is updated
+// synchronously for immediate command consistency; durable persistence then
+// attempts PostgreSQL first and writes the local SQLite fallback/cache either
+// after success or immediately after a PostgreSQL failure.
+const pendingBotSettingWrites = new Map();
+
+async function persistBotSettingPrimary(key, value) {
+  const pgStatus = pgAdapter.getStatus();
+  if (pgStatus.configured) {
+    let pgSaved = false;
+    if (pgStatus.available) {
+      try {
+        const result = await pgAdapter.mirrorBotSetting(key, value);
+        pgSaved = result !== null && result !== false;
+      } catch (error) {
+        console.warn(`[DB] PostgreSQL settings write failed for ${key}: ${error.message}`);
+      }
+    }
+
+    // Always keep a local recovery copy. If PostgreSQL failed, this is the
+    // active fallback and the existing retry queue will replay it later.
+    try {
+      stmts.setBotSetting.run(key, serial(value));
+      requestBackup(pgSaved ? 'bot-setting-local-cache' : 'bot-setting-sqlite-fallback');
+    } catch (error) {
+      if (pgSaved) {
+        console.warn(`[DB] PostgreSQL saved setting ${key}, but SQLite backup failed: ${error.message}`);
+      } else {
+        throw error;
+      }
+    }
+
+    if (!pgSaved) enqueueRemoteSync('postgres', 'mirrorBotSetting', [key, value], pgStatus.available ? 'postgres-write-failed' : 'postgres-unavailable');
+    return pgSaved;
+  }
+
+  // No PostgreSQL URL configured: preserve the original SQLite-only behavior.
   stmts.setBotSetting.run(key, serial(value));
-  botSettingsCache.set(key, value); // write-through
   requestBackup('bot-setting');
   mirrorRemote('mirrorBotSetting', key, value);
+  return false;
+}
+
+const setBotSetting = (key, value) => {
+  botSettingsCache.set(key, value);
+  const previous = pendingBotSettingWrites.get(key) || Promise.resolve();
+  const next = previous.catch(() => {}).then(() => persistBotSettingPrimary(key, value))
+    .catch((error) => {
+      console.error(`[DB] Could not persist setting ${key}: ${error.message}`);
+    })
+    .finally(() => {
+      if (pendingBotSettingWrites.get(key) === next) pendingBotSettingWrites.delete(key);
+    });
+  pendingBotSettingWrites.set(key, next);
   return true;
 };
 const getStoredBotSettings = () => {
@@ -2437,6 +2489,10 @@ async function shutdownDatabase() {
     try {
       console.log('[DB] 🔄 Shutting down...');
       await ready;
+      // Do not exit while a PostgreSQL-first settings write is still in flight.
+      if (pendingBotSettingWrites.size) {
+        await Promise.allSettled([...pendingBotSettingWrites.values()]);
+      }
       await flushRemoteAuthMirror('shutdown');
       await flushBackup();
     } finally {

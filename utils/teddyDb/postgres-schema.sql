@@ -1,7 +1,8 @@
 -- Teddy X PostgreSQL mirror schema
 --
--- SQLite remains the live database. PostgreSQL stores mirrored/recovery data
--- for one or more bot instances, separated by bot_id.
+-- PostgreSQL is the primary durable store for bot settings when configured.
+-- Local SQLite remains the synchronous runtime cache and automatic fallback.
+-- Records are separated by bot_id for multi-instance deployments.
 
 CREATE TABLE IF NOT EXISTS bot_configs (
   bot_id     TEXT NOT NULL,

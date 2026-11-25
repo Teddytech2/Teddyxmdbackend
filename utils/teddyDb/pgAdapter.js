@@ -3,9 +3,9 @@
 /**
  * Optional PostgreSQL persistence for Teddy X.
  *
- * SQLite remains the local source used by the bot at runtime. PostgreSQL is a
- * remote mirror/recovery layer that is enabled only when DATABASE_URL exists.
- * Every public operation is safe when PostgreSQL is absent or unavailable.
+ * PostgreSQL is the primary durable store for bot settings when DATABASE_URL
+ * exists. Local SQLite remains the synchronous runtime cache/fallback. Every
+ * public operation is safe when PostgreSQL is absent or unavailable.
  */
 
 const fs = require('fs');
