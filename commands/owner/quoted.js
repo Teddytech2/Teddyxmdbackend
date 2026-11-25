@@ -1,54 +1,110 @@
 'use strict';
 
-function findContextInfo(node, depth = 0) {
-  if (!node || typeof node !== 'object' || depth > 8) return null;
-  if (node.contextInfo && typeof node.contextInfo === 'object') return node.contextInfo;
-  for (const value of Object.values(node)) {
-    if (value && typeof value === 'object') {
-      const found = findContextInfo(value, depth + 1);
-      if (found) return found;
+const util = require('util');
+
+function getQuotedContext(message) {
+  if (!message || typeof message !== 'object') return null;
+  const queue = [message];
+  const seen = new Set();
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+    if (current.contextInfo && current.contextInfo.quotedMessage) return current.contextInfo;
+    for (const value of Object.values(current)) {
+      if (value && typeof value === 'object') queue.push(value);
     }
   }
   return null;
 }
 
-function safeStringify(value) {
-  const seen = new WeakSet();
-  return JSON.stringify(value, (key, item) => {
-    if (typeof item === 'bigint') return item.toString();
-    if (item && typeof item === 'object') {
-      if (seen.has(item)) return '[Circular]';
-      seen.add(item);
-    }
-    if (typeof item === 'function') return `[Function ${item.name || 'anonymous'}]`;
-    return item;
-  }, 2);
+function getText(message) {
+  return message?.conversation || message?.extendedTextMessage?.text ||
+    message?.imageMessage?.caption || message?.videoMessage?.caption ||
+    message?.documentMessage?.caption || '';
 }
 
 module.exports = {
-  name: 'quoted', aliases: ['mquoted', 'qinspect'], category: 'owner',
-  description: 'Inspect the full structure of a replied-to WhatsApp message',
-  usage: '.quoted (reply to a message)', ownerOnly: true,
+  name: 'quoted',
+  aliases: ['mquoted', 'qinspect'],
+  category: 'owner',
+  description: 'Display the full m.quoted-style Baileys message object',
+  usage: '.quoted (reply to a message)',
+  ownerOnly: true,
+
   async execute(sock, msg, args, extra) {
-    const contextInfo = findContextInfo(msg?.message);
-    const quotedMessage = contextInfo?.quotedMessage;
-    if (!quotedMessage) return extra.reply('Reply to a WhatsApp message and send .quoted to inspect it.');
-    const result = {
-      key: {
-        remoteJid: msg.key?.remoteJid || extra.from || null,
-        participant: contextInfo.participant || null,
-        fromMe: contextInfo.participant === sock.user?.id
-      },
-      stanzaId: contextInfo.stanzaId || null,
-      participant: contextInfo.participant || null,
-      messageType: Object.keys(quotedMessage)[0] || 'unknown',
-      message: quotedMessage
+    const context = getQuotedContext(msg?.message);
+    if (!context?.quotedMessage) {
+      return extra.reply('Reply to a WhatsApp message and send .quoted to inspect it.');
+    }
+
+    const raw = context.quotedMessage;
+    const mtype = Object.keys(raw)[0] || 'unknown';
+    const chat = msg.key?.remoteJid || extra.from || '';
+    const participant = context.participant || msg.key?.participant || '';
+    const key = {
+      remoteJid: chat,
+      fromMe: false,
+      id: context.stanzaId || '',
+      ...(participant ? { participant } : {})
     };
-    let output;
-    try { output = safeStringify(result); }
-    catch (error) { return extra.reply(`Could not serialize quoted message: ${error.message}`); }
+
+    // Recreate the same useful m.quoted wrapper shape shown by Baileys-based
+    // Teddy bots. Keep the circular message reference so util.inspect prints
+    // <ref *1> and [Circular *1], rather than flattening it into JSON.
+    function ExtendedTextMessage() {}
+    const quoted = Object.assign(new ExtendedTextMessage(), {
+      endCardTiles: [],
+      viewOnce: Boolean(raw[mtype]?.viewOnce || raw.viewOnceMessage || raw.viewOnceMessageV2),
+      mtype,
+      chat,
+      id: context.stanzaId || '',
+      sender: participant || chat,
+      fromMe: false,
+      mentionedJid: raw[mtype]?.contextInfo?.mentionedJid || [],
+      isBaileys: false,
+      text: getText(raw),
+      message: null,
+      origType: mtype,
+      fakeObj: {
+        messageStubParameters: [],
+        labels: [],
+        userReceipt: [],
+        reactions: [],
+        pollUpdates: [],
+        eventResponses: [],
+        statusMentions: [],
+        messageAddOns: [],
+        statusMentionSources: [],
+        supportAiCitations: [],
+        decisionSources: [],
+        key,
+        message: null,
+        ...(participant ? { participant } : {})
+      },
+      delete: function (anonymous) {},
+      copyNForward: function (anonymous) {},
+      download: function (anonymous) {}
+    });
+    quoted.message = { [mtype]: quoted };
+    quoted.fakeObj.message = quoted.message;
+
+    const output = util.inspect(quoted, {
+      depth: 10,
+      colors: false,
+      compact: false,
+      breakLength: 78,
+      maxArrayLength: null,
+      maxStringLength: 12000,
+      getters: false
+    });
+
+    // WhatsApp has a practical message-size ceiling. Preserve the beginning
+    // of util.inspect output (where the wrapper and metadata are shown).
     const MAX = 12000;
-    if (output.length > MAX) output = output.slice(0, MAX) + '\n\n… [output truncated]';
-    return extra.reply(`🔎 *Quoted message object*\n\n${output}`);
+    const safeOutput = output.length > MAX
+      ? output.slice(0, MAX) + '\n... [output truncated]'
+      : output;
+    return extra.reply(safeOutput);
   }
 };

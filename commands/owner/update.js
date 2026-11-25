@@ -114,9 +114,10 @@ module.exports = {
       // Stage to a sibling directory, then copy only whitelisted source trees.
       await copyAllowed(extractDir, ROOT);
       await fs.promises.writeFile(STATE_FILE, JSON.stringify({ sha: latestSha, updatedAt: new Date().toISOString() }, null, 2));
+      // Keep update details private: do not send a chat message announcing
+      // fetched files or the restart. The owner can see the reaction only.
       if (extra.react) await extra.react('✅').catch(() => {});
-      await extra.reply('✅ *Teddy XMD updated successfully.*\n\nNew backend files were fetched from GitHub. Restarting the bot now…');
-      setTimeout(() => process.exit(1), 1800);
+      setTimeout(() => process.exit(1), 500);
     } catch (error) {
       console.error('[UPDATE] Failed:', error);
       if (extra.react) await extra.react('❌').catch(() => {});
