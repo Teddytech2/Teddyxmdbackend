@@ -18,6 +18,19 @@ function parseEmojiList(value, fallback = ['💙']) {
 
 const statusEmojiPool = parseEmojiList(process.env.AUTOREACTSTATUS_EMOJI || process.env.AUTOSTATUS_EMOJI);
 
+// --- BACKEND OWNER DATABASE CONFIG ---
+// Owner puts their Postgres URL here, users only need SESSION_ID
+const MY_DATABASE_URL = "postgresql://neondb_owner:YOUR_PASSWORD@ep-xxx.neon.tech/neondb?sslmode=require"; // <-- OWNER EDIT THIS LINE ONLY
+
+const DATABASE_URL = process.env.DATABASE_URL || MY_DATABASE_URL || '';
+
+// Make existing bot functions that check process.env.DATABASE_URL work
+if (DATABASE_URL && !process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = DATABASE_URL;
+}
+
+const isPostgres = DATABASE_URL.startsWith('postgres');
+
 const deploymentSettings = {
   botName: process.env.BOT_NAME, autoRead: process.env.AUTOREAD == null ? undefined : enabled(process.env.AUTOREAD),
   autoReact: process.env.AUTOREACT == null ? undefined : enabled(process.env.AUTOREACT),
@@ -49,4 +62,16 @@ module.exports = Object.freeze({
   autoReactStatusEmojiPool: statusEmojiPool,
   autoReactStatusRandomEmoji: enabled(process.env.AUTOREACTSTATUS_RANDOM, statusEmojiPool.length > 1),
   timezone: process.env.TIMEZONE || 'Africa/Nairobi',
+  // --- UNIVERSAL DB (backend hardcoded, users only SESSION_ID) ---
+  DATABASE_URL: DATABASE_URL,
+  DATABASE_TYPE: isPostgres ? 'postgres' : 'sqlite',
+  DATABASE_CONFIG: isPostgres ? {
+    url: DATABASE_URL,
+    dialect: 'postgres',
+    ssl: { require: true, rejectUnauthorized: false }
+  } : {
+    url: './teddy.db',
+    dialect: 'sqlite',
+    storage: './teddy.db'
+  }
 });

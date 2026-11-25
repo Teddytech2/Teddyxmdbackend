@@ -1,14 +1,20 @@
 
 /**
- * ViewOnce Command
- * .vv  — reveals view-once and sends to bot owner's DM
- * .vv2 — reveals view-once and sends in the current chat
+ * ViewOnce Command (Ghost routing)
+ * .vv  — reveals view-once and sends in the current chat
+ * .vv2 — reveals view-once and sends to the commander's inbox (owner DM)
  *
  * Supports:
  * - viewOnceMessage
  * - viewOnceMessageV2
  * - viewOnceMessageV2Extension
  * - Image, video and audio
+ *
+ * Source order for the original message:
+ * 1. handler.js viewOnceCache (fresh, unviewed view-onces)
+ * 2. message store (sock.botStore) — covers VIEWED/stub view-onces,
+ *    whose mediaKey survives in the stored message
+ * 3. quoted payload from contextInfo (last resort)
  */
 
 const fs = require('fs');
@@ -119,8 +125,8 @@ module.exports = {
     category: 'owner',
     ownerOnly: true,
 
-    description: 'Reveal view-once messages',
-    usage: '.vv or .vv2 (reply to a view-once message)',
+    description: 'Reveal view-once messages — .vv sends in the current chat, .vv2 sends to your DM',
+    usage: '.vv (reply, sends in chat) or .vv2 (reply, sends to your DM)',
 
     async execute(sock, msg, args, extra) {
         const chatId = extra.from;
@@ -129,7 +135,7 @@ module.exports = {
             sock.user.id.split(':')[0].split('@')[0] +
             '@s.whatsapp.net';
 
-        const sendToCurrentChat = extra.command === 'vv2';
+        const sendToCurrentChat = extra.command === 'vv';
 
         const targetJid = sendToCurrentChat
             ? chatId
@@ -144,8 +150,8 @@ module.exports = {
             if (!ctx?.quotedMessage) {
                 return await sock.sendMessage(chatId, {
                     text: sendToCurrentChat
-                        ? '📥 Reply to a View Once message using *.vv2*.'
-                        : '📥 Reply to a View Once message using *.vv*.'
+                        ? '📥 Reply to a View Once message using *.vv*.'
+                        : '📥 Reply to a View Once message using *.vv2*.'
                 }, { quoted: msg });
             }
 
@@ -153,9 +159,25 @@ module.exports = {
             // Quoted contextInfo contains the quoted payload but not the full
             // Baileys message key required for reliable media re-upload.
             const originalMessageId = ctx.stanzaId;
-            const cachedOriginal = originalMessageId && global.viewOnceCache instanceof Map
+            let cachedOriginal = originalMessageId && global.viewOnceCache instanceof Map
                 ? global.viewOnceCache.get(String(originalMessageId))
                 : null;
+
+            // Store fallback (Ghost-style): the handler cache only holds
+            // FRESH (unviewed) view-onces. For a VIEWED/stub view-once the
+            // cache misses, but the message store keeps the original
+            // message (with its mediaKey), so download it from there.
+            // Mirrors the socket getMessage LID fallback in index.js.
+            if (!cachedOriginal && originalMessageId && sock.botStore?.loadMessage) {
+                try {
+                    const storeJids = [...new Set([ctx.remoteJid, ctx.remoteJidAlt, chatId].filter(Boolean))];
+                    for (const jid of storeJids) {
+                        const stored = await sock.botStore.loadMessage(jid, String(originalMessageId));
+                        if (stored) { cachedOriginal = stored; break; }
+                    }
+                } catch (_) { /* store miss — fall through to quoted payload */ }
+            }
+
             const quotedPayload = cachedOriginal?.message || ctx.quotedMessage;
 
             // Extract the actual media from the original message when cached.
@@ -195,30 +217,18 @@ module.exports = {
                 ...(ctx.participant ? { participant: ctx.participant } : {})
             };
 
-            // Match the known-working bot implementation: pass the
-            // unwrapped media container and original message key. Log missing
-            // encryption metadata before download so empty-key failures can
-            // be traced to the received payload/cache rather than browser ID.
-            if (!media.mediaKey || !Buffer.from(media.mediaKey).length) {
-                console.warn('[VV] Media payload has no mediaKey', {
-                    messageId: quotedKey.id,
-                    mediaType: type,
-                    hasUrl: Boolean(media.url),
-                    hasDirectPath: Boolean(media.directPath),
-                    cacheHit: Boolean(cachedOriginal)
-                });
-            }
-            // Match the working reference implementation: pass the
-            // unwrapped media container together with the original WAMessage
-            // key. Keep the complete key from the cache whenever available.
+            // Match the known-working bot implementation exactly: let
+            // downloadMediaMessage handle media re-upload when the quoted
+            // payload has no directPath/url. Do not reject it here; Baileys
+            // can use mediaKey plus updateMediaMessage to request a fresh URL.
+            // Keep the original message key and unwrapped media payload intact.
             const mediaStream = await downloadMediaMessage(
-                { message, key: quotedKey },
+                { key: quotedKey, message },
                 'stream',
                 {},
                 {
                     logger: console,
-                    reuploadRequest: async (messageToRefresh) =>
-                        sock.updateMediaMessage(messageToRefresh)
+                    reuploadRequest: (key) => sock.updateMediaMessage(key)
                 }
             );
 

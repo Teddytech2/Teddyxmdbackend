@@ -1292,7 +1292,7 @@ async function startTeddyxBot() {
         version,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: ['Mac OS', 'Chrome', '10.15.7'],
+        browser: ['Ubuntu', 'Chrome', '20.0.04'],
         auth: {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'fatal' }).child({ level: 'fatal' }))
@@ -1811,6 +1811,11 @@ if (groupInvites.length > 0) {
             global._sReactQueueRunning = false
         }
 
+        // Viewed-status dedup (Falcon-style): status message ID alone,
+        // LRU max 2000. Never dedup by participant — it changes between
+        // LID and phone number and re-views the same status every minute.
+        if (!global._viewedStatusIds) global._viewedStatusIds = new Map()
+
         function enqueueStatusReact(job) {
             global._sReactQueue.push(job)
             if (!global._sReactQueueRunning) runStatusReactQueue()
@@ -1880,20 +1885,25 @@ if (groupInvites.length > 0) {
             try {
                 const s = loadSettings()
 
-                // Auto View — readMessages alone dispatches the right receipt type for status@broadcast keys.
-                if (s.enabled && receiptPart) {
+                // Auto View (Falcon-style): VIEW ONLY, no react here.
+                // Dedup FIRST by status ID alone — never by participant.
+                // Fire-and-forget: viewing must never block command
+                // handling. readMessages alone dispatches the right
+                // receipt type for status@broadcast keys.
+                if (s.enabled && receiptPart && !global._viewedStatusIds.has(msg.key.id)) {
+                    global._viewedStatusIds.set(msg.key.id, Date.now())
+                    if (global._viewedStatusIds.size > 2000) {
+                        global._viewedStatusIds.delete(global._viewedStatusIds.keys().next().value)
+                    }
                     const readKey = {
                         remoteJid: 'status@broadcast',
                         id: msg.key.id,
                         participant: receiptPart,
                         fromMe: false,
                     }
-                    await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 500)))
-                    try {
-                        await sock.readMessages([readKey])
-                    } catch (viewErr) {
+                    Promise.resolve(sock.readMessages([readKey])).catch((viewErr) => {
                         log(`[ STATUS ] Auto-view FAILED for ${msg.key.id}: ${viewErr.message}`, 'red')
-                    }
+                    })
                 }
 
                 // Auto React — routed through the serialized queue
