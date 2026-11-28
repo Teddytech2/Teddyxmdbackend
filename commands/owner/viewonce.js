@@ -1,122 +1,80 @@
-
 /**
- * ViewOnce Command (Ghost routing)
- * .vv  — reveals view-once and sends in the current chat
- * .vv2 — reveals view-once and sends to the commander's inbox (owner DM)
+ * ViewOnce Command — Levanter-style reveal/forward.
  *
- * Supports:
- * - viewOnceMessage
- * - viewOnceMessageV2
- * - viewOnceMessageV2Extension
- * - Image, video and audio
+ * .vv  reveals the replied-to view-once message in the current chat.
+ * .vv2 reveals it in the bot owner's private chat.
  *
- * Source order for the original message:
- * 1. handler.js viewOnceCache (fresh, unviewed view-onces)
- * 2. message store (sock.botStore) — covers VIEWED/stub view-onces,
- *    whose mediaKey survives in the stored message
- * 3. quoted payload from contextInfo (last resort)
+ * Uses the original Baileys message payload/key and relays the unwrapped
+ * media with viewOnce disabled, matching Levanter's forwardOrBroadCast()
+ * approach. No media download/temp-file round trip is required.
  */
+const { generateMessageIDV2, downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
-const fs = require('fs');
-const { pipeline } = require('stream/promises');
-const {
-    downloadMediaMessage
-} = require('@whiskeysockets/baileys');
+const VIEW_ONCE_WRAPPERS = [
+    'viewOnceMessageV2Extension',
+    'viewOnceMessageV2',
+    'viewOnceMessage',
+];
+const MEDIA_TYPES = ['imageMessage', 'videoMessage', 'audioMessage'];
 
-const {
-    createTempFilePath,
-    deleteTempFile
-} = require('../../utils/tempManager');
+async function sendMediaFallback(sock, targetJid, extracted) {
+    const { type, media } = extracted;
+    const downloadType = type === 'imageMessage' ? 'image' : type === 'videoMessage' ? 'video' : 'audio';
+    const stream = await downloadContentFromMessage(media, downloadType);
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    const buffer = Buffer.concat(chunks);
+    if (!buffer.length) throw new Error('Downloaded View Once media was empty');
 
-function findQuotedContext(content) {
-    const stack = [content];
-    const visited = new Set();
-
-    while (stack.length) {
-        const current = stack.pop();
-
-        if (!current || typeof current !== 'object' || visited.has(current)) {
-            continue;
-        }
-
-        visited.add(current);
-
-        if (current.contextInfo?.quotedMessage) {
-            return current.contextInfo;
-        }
-
-        for (const value of Object.values(current)) {
-            if (value && typeof value === 'object') {
-                stack.push(value);
-            }
-        }
+    if (type === 'imageMessage') {
+        return sock.sendMessage(targetJid, { image: buffer, caption: media.caption || '🖼️ *View Once Image*', ...(media.mimetype ? { mimetype: media.mimetype } : {}) });
     }
-
-    return null;
+    if (type === 'videoMessage') {
+        return sock.sendMessage(targetJid, { video: buffer, caption: media.caption || '🎬 *View Once Video*', mimetype: media.mimetype || 'video/mp4' });
+    }
+    return sock.sendMessage(targetJid, { audio: buffer, mimetype: media.mimetype || 'audio/ogg; codecs=opus', ptt: !!media.ptt });
 }
 
-function extractMedia(quoted) {
-    let current = quoted;
-    let isViewOnce = false;
+function unwrapViewOnce(content) {
+    let current = content;
+    let foundViewOnce = false;
 
-    // Unwrap nested WhatsApp message containers.
-    for (let i = 0; i < 10 && current; i++) {
-        if (current.viewOnceMessage?.message) {
-            isViewOnce = true;
-            current = current.viewOnceMessage.message;
-            continue;
-        }
+    // WhatsApp may nest ephemeral/document wrappers around view-once.
+    for (let depth = 0; depth < 12 && current && typeof current === 'object'; depth++) {
+        let next = null;
 
-        if (current.viewOnceMessageV2?.message) {
-            isViewOnce = true;
-            current = current.viewOnceMessageV2.message;
-            continue;
-        }
-
-        if (current.viewOnceMessageV2Extension?.message) {
-            isViewOnce = true;
-            current = current.viewOnceMessageV2Extension.message;
-            continue;
-        }
-
-        if (current.ephemeralMessage?.message) {
-            current = current.ephemeralMessage.message;
-            continue;
-        }
-
-        if (current.documentWithCaptionMessage?.message) {
-            current = current.documentWithCaptionMessage.message;
-            continue;
-        }
-
-        break;
-    }
-
-    const types = [
-        'imageMessage',
-        'videoMessage',
-        'audioMessage'
-    ];
-
-    for (const type of types) {
-        if (current?.[type]) {
-            const media = current[type];
-
-            if (media.viewOnce) {
-                isViewOnce = true;
-            }
-
-            if (isViewOnce) {
-                return {
-                    message: current,
-                    type,
-                    media
-                };
+        for (const wrapper of VIEW_ONCE_WRAPPERS) {
+            if (current[wrapper]?.message) {
+                foundViewOnce = true;
+                next = current[wrapper].message;
+                break;
             }
         }
+
+        if (!next && current.ephemeralMessage?.message) {
+            next = current.ephemeralMessage.message;
+        }
+        if (!next && current.documentWithCaptionMessage?.message) {
+            next = current.documentWithCaptionMessage.message;
+        }
+
+        if (!next) break;
+        current = next;
     }
 
-    return null;
+    if (!current || typeof current !== 'object') return null;
+
+    // Support direct viewOnce flags as well as wrapped messages.
+    const type = MEDIA_TYPES.find((key) => current[key]);
+    if (!type) return null;
+
+    const media = current[type];
+    if (media?.viewOnce) foundViewOnce = true;
+    if (!foundViewOnce) return null;
+
+    // Clone the content and remove the one-time flag before relaying.
+    const revealed = { ...current, [type]: { ...media, viewOnce: false } };
+    return { content: revealed, type, media: revealed[type] };
 }
 
 module.exports = {
@@ -124,195 +82,93 @@ module.exports = {
     aliases: ['vv', 'vv2', 'rvo', 'readvo', 'readviewonce'],
     category: 'owner',
     ownerOnly: true,
-
     description: 'Reveal view-once messages — .vv sends in the current chat, .vv2 sends to your DM',
     usage: '.vv (reply, sends in chat) or .vv2 (reply, sends to your DM)',
 
     async execute(sock, msg, args, extra) {
         const chatId = extra.from;
-
-        const selfJid =
-            sock.user.id.split(':')[0].split('@')[0] +
-            '@s.whatsapp.net';
-
-        const sendToCurrentChat = extra.command === 'vv';
-
-        const targetJid = sendToCurrentChat
-            ? chatId
-            : selfJid;
-
-        let tmpPath = null;
+        const command = String(extra.command || '').toLowerCase();
+        const sendToCurrentChat = command === 'vv';
+        const selfJid = `${sock.user.id.split(':')[0].split('@')[0]}@s.whatsapp.net`;
+        const targetJid = sendToCurrentChat ? chatId : selfJid;
 
         try {
-            // Find quoted message context.
-            const ctx = findQuotedContext(msg.message);
+            // The quoted message's stanza ID is the key used by the handler cache.
+            const ctx = msg.message?.extendedTextMessage?.contextInfo
+                || msg.message?.imageMessage?.contextInfo
+                || msg.message?.videoMessage?.contextInfo
+                || msg.message?.documentMessage?.contextInfo;
 
             if (!ctx?.quotedMessage) {
                 return await sock.sendMessage(chatId, {
-                    text: sendToCurrentChat
-                        ? '📥 Reply to a View Once message using *.vv*.'
-                        : '📥 Reply to a View Once message using *.vv2*.'
+                    text: `📥 Reply to a View Once message using *.${sendToCurrentChat ? 'vv' : 'vv2'}*.`,
                 }, { quoted: msg });
             }
 
-            // Prefer the complete original message captured by handler.js.
-            // Quoted contextInfo contains the quoted payload but not the full
-            // Baileys message key required for reliable media re-upload.
-            const originalMessageId = ctx.stanzaId;
-            let cachedOriginal = originalMessageId && global.viewOnceCache instanceof Map
-                ? global.viewOnceCache.get(String(originalMessageId))
+            const originalId = ctx.stanzaId;
+            let original = originalId && global.viewOnceCache instanceof Map
+                ? global.viewOnceCache.get(String(originalId))
                 : null;
 
-            // Store fallback (Ghost-style): the handler cache only holds
-            // FRESH (unviewed) view-onces. For a VIEWED/stub view-once the
-            // cache misses, but the message store keeps the original
-            // message (with its mediaKey), so download it from there.
-            // Mirrors the socket getMessage LID fallback in index.js.
-            if (!cachedOriginal && originalMessageId && sock.botStore?.loadMessage) {
-                try {
-                    const storeJids = [...new Set([ctx.remoteJid, ctx.remoteJidAlt, chatId].filter(Boolean))];
-                    for (const jid of storeJids) {
-                        const stored = await sock.botStore.loadMessage(jid, String(originalMessageId));
-                        if (stored) { cachedOriginal = stored; break; }
-                    }
-                } catch (_) { /* store miss — fall through to quoted payload */ }
+            // A stored original preserves the complete Baileys key, which is
+            // needed by relay/reupload logic for LID and group messages.
+            if (!original && originalId && sock.botStore?.loadMessage) {
+                const candidates = [...new Set([
+                    ctx.remoteJid,
+                    ctx.remoteJidAlt,
+                    chatId,
+                ].filter(Boolean))];
+
+                for (const jid of candidates) {
+                    try {
+                        original = await sock.botStore.loadMessage(jid, String(originalId));
+                        if (original) break;
+                    } catch (_) {}
+                }
             }
 
-            const quotedPayload = cachedOriginal?.message || ctx.quotedMessage;
-
-            // Extract the actual media from the original message when cached.
-            const extracted = extractMedia(quotedPayload);
-
+            const source = original?.message || ctx.quotedMessage;
+            const extracted = unwrapViewOnce(source);
             if (!extracted) {
                 return await sock.sendMessage(chatId, {
-                    text: '❌ That message is not a supported View Once image, video, or audio.'
+                    text: '❌ I could not find a supported View Once image, video, or audio in that reply.',
                 }, { quoted: msg });
             }
 
-            const { message, type, media } = extracted;
+            const { content } = extracted;
+            const messageId = typeof generateMessageIDV2 === 'function'
+                ? generateMessageIDV2(sock.user.id)
+                : undefined;
 
-            const downloadType = {
-                imageMessage: 'image',
-                videoMessage: 'video',
-                audioMessage: 'audio'
-            }[type];
-
-            const extension = {
-                imageMessage: 'jpg',
-                videoMessage: 'mp4',
-                audioMessage: 'mp4'
-            }[type];
+            // Relay the actual unwrapped Baileys message instead of downloading
+            // it to a temporary file and re-uploading a second copy.
+            try {
+                await sock.relayMessage(targetJid, content, {
+                    ...(messageId ? { messageId } : {}),
+                    additionalAttributes: {},
+                });
+            } catch (relayError) {
+                // Levanter-style relay is the primary path. If Baileys rejects
+                // the original payload/key, re-upload the media to the SAME
+                // destination (especially the owner's inbox for .vv2).
+                console.warn('[VIEWONCE RELAY FALLBACK]', relayError?.message || relayError);
+                await sendMediaFallback(sock, targetJid, extracted);
+            }
 
             await sock.sendMessage(chatId, {
-                text: '⏳ Processing View Once media...'
-            }, { quoted: msg });
-
-            // Use the exact original Baileys key whenever the handler cache
-            // has it. This preserves remoteJid/fromMe/participant and avoids
-            // guessing those fields from the reply's contextInfo.
-            const quotedKey = cachedOriginal?.key || {
-                remoteJid: ctx.remoteJid || chatId,
-                fromMe: Boolean(ctx.participant && ctx.participant === selfJid),
-                id: ctx.stanzaId,
-                ...(ctx.participant ? { participant: ctx.participant } : {})
-            };
-
-            // Match the known-working bot implementation exactly: let
-            // downloadMediaMessage handle media re-upload when the quoted
-            // payload has no directPath/url. Do not reject it here; Baileys
-            // can use mediaKey plus updateMediaMessage to request a fresh URL.
-            // Keep the original message key and unwrapped media payload intact.
-            const mediaStream = await downloadMediaMessage(
-                { key: quotedKey, message },
-                'stream',
-                {},
-                {
-                    logger: console,
-                    reuploadRequest: (key) => sock.updateMediaMessage(key)
-                }
-            );
-
-            if (!mediaStream) {
-                throw new Error('Media download returned an empty stream.');
-            }
-
-            // Save to a temporary file.
-            tmpPath = createTempFilePath('vv', extension);
-
-            const writeStream = fs.createWriteStream(tmpPath);
-
-            await pipeline(mediaStream, writeStream);
-
-            if (!fs.existsSync(tmpPath) || fs.statSync(tmpPath).size === 0) {
-                throw new Error('Downloaded media is empty.');
-            }
-
-            // Preserve the original caption.
-            const caption = media.caption || '';
-
-            // Send recovered media.
-            if (type === 'imageMessage') {
-                await sock.sendMessage(targetJid, {
-                    image: { url: tmpPath },
-                    caption: caption || '👁️ View Once Image Saved'
-                });
-
-            } else if (type === 'videoMessage') {
-                await sock.sendMessage(targetJid, {
-                    video: { url: tmpPath },
-                    caption: caption || '👁️ View Once Video Saved',
-                    mimetype: media.mimetype || 'video/mp4'
-                });
-
-            } else if (type === 'audioMessage') {
-                await sock.sendMessage(targetJid, {
-                    audio: { url: tmpPath },
-                    mimetype: media.mimetype || 'audio/mp4',
-                    ptt: Boolean(media.ptt)
-                });
-            }
-
-            // React to the original command.
-            await sock.sendMessage(chatId, {
-                react: {
-                    text: '✅',
-                    key: msg.key
-                }
+                react: { text: '✅', key: msg.key },
             });
 
-            // Confirm successful delivery.
             if (!sendToCurrentChat) {
                 await sock.sendMessage(chatId, {
-                    text: '✅ View Once media sent to your DM.'
+                    text: '✅ View Once media sent to your DM.',
                 }, { quoted: msg });
             }
-
         } catch (error) {
             console.error('[VIEWONCE ERROR]', error);
-
-            let errorMessage = '❌ Failed to reveal View Once media.';
-
-            if (/decrypt|media key/i.test(error.message || '')) {
-                errorMessage =
-                    '❌ Media decryption failed. The media key may be invalid or expired.';
-            } else if (/expired|not found/i.test(error.message || '')) {
-                errorMessage =
-                    '❌ Media may have expired or is no longer available.';
-            }
-
             await sock.sendMessage(chatId, {
-                text: `${errorMessage}\n\nDetails: ${error.message || 'Unknown error'}`
+                text: `❌ Failed to reveal View Once media${sendToCurrentChat ? ' in this chat' : ' to the owner inbox'}.\n\nDetails: ${error.message || 'Unknown error'}`,
             }, { quoted: msg });
-
-        } finally {
-            // Always remove temporary files.
-            if (tmpPath) {
-                try {
-                    await deleteTempFile(tmpPath);
-                } catch (cleanupError) {
-                    console.error('[VV CLEANUP ERROR]', cleanupError);
-                }
-            }
         }
-    }
+    },
 };
