@@ -1,4 +1,4 @@
-const { downloadContentFromMessage } = require('baileys');
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const { sendButtons } = require('gifted-btns');
 const fs   = require('fs');
 const path = require('path');

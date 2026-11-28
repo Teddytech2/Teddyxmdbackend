@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { getTempDir, deleteTempFile } = require('../../utils/tempManager');
 const ffmpegPath = require('../../utils/ffmpegPath');
 

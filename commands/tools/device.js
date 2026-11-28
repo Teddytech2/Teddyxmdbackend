@@ -2,7 +2,7 @@
  * Device Command - Detect what device a quoted message was sent from
  */
 
-const { getDevice } = require('baileys');
+const { getDevice } = require('@whiskeysockets/baileys');
 
 const DEVICE_LABELS = {
     android: 'Android',

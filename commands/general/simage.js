@@ -4,7 +4,7 @@
  * with .toimage / .toimg as the caption.
  */
 
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { webp2png, webp2mp4 } = require('../../utils/webp2mp4');
 
 module.exports = {

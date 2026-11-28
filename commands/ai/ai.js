@@ -5,7 +5,7 @@
 
 const axios = require('axios');
 const FormData = require('form-data');
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
 const BASE = 'https://apiskeith2-production-3679.up.railway.app';
 

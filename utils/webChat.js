@@ -46,7 +46,7 @@ const { spawn } = require('child_process');
 const pollCrypto = require('./webChatPoll');
 const { unwrapMessage, extractMedia, slimMessage, msgTs, STATUS, applyReaction, quotedDescriptor, editedTextFromProtocol, digits, protoTypeOf, secretEditOf, messageText, isSilentRow } = require('./webChatText');
 const { decryptEdit } = require('./msgSecret');
-const { proto: waProto } = require('baileys');
+const { proto: waProto } = require('@whiskeysockets/baileys');
 const { createWebChatStore } = require('./webChatStore');
 
 const PAGE_PATH = path.join(__dirname, 'webChatPage.html');
@@ -166,7 +166,7 @@ function withTimeout(promise, ms) {
 // Lazy require: Baileys is already loaded by index.js in production, and this
 // keeps the module loadable in tests without the full Baileys dependency tree.
 async function defaultDownloadMedia(content, kind) {
-    const { downloadContentFromMessage } = require('baileys');
+    const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
     const stream = await downloadContentFromMessage(content, kind);
     const chunks = [];
     for await (const chunk of stream) chunks.push(chunk);
@@ -233,7 +233,7 @@ function waveformFromPcm(pcm, bars = 64) {
 // AudioMessage, generate the message and relay it (a plain sendMessage with
 // ptt renders the waveform as a flat line on some clients).
 async function defaultSendVoice(sock, jid, opus, { seconds, waveform, quoted }) {
-    const baileys = require('baileys');
+    const baileys = require('@whiskeysockets/baileys');
     const media = await baileys.prepareWAMessageMedia(
         { audio: opus, mimetype: 'audio/ogg; codecs=opus', ptt: true },
         { upload: sock.waUploadToServer }
@@ -255,7 +255,7 @@ async function defaultSendVoice(sock, jid, opus, { seconds, waveform, quoted }) 
 
 function defaultMsgId(sock) {
     try {
-        return require('baileys').generateMessageIDV2(sock?.user?.id);
+        return require('@whiskeysockets/baileys').generateMessageIDV2(sock?.user?.id);
     } catch (_) {
         return crypto.randomBytes(10).toString('hex').toUpperCase();
     }

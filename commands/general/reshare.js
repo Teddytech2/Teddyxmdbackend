@@ -1,4 +1,4 @@
-const { downloadContentFromMessage } = require('baileys');
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const database = require('../../database');
 
 const STATUS_JID = 'status@broadcast';

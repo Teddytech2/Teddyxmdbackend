@@ -4,7 +4,7 @@
  * Supports text, images, videos, and stickers
  */
 
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
 module.exports = {
   name: 'hidetag',

@@ -14,7 +14,7 @@
 const os   = require('os');
 const fs   = require('fs');
 const path = require('path');
-const { jidDecode } = require('baileys');
+const { jidDecode } = require('@whiskeysockets/baileys');
 const { resolvePhone, preloadLidResolution } = require(path.join(global.__ROOT__, 'utils', 'jidHelper'));
 
 module.exports = {

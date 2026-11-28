@@ -13,7 +13,7 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 
 let BufferJSON = null;
-try { ({ BufferJSON } = require('baileys/lib/Utils/generics')); } catch (_) {}
+try { ({ BufferJSON } = require('@whiskeysockets/baileys/lib/Utils/generics')); } catch (_) {}
 
 const DEFAULT_SESSION_SERVER_URL = 'https://teddyxmdpair-60b69f1c4cee.herokuapp.com';
 const DEFAULT_TIMEOUT_MS = 20000;

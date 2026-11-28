@@ -4,7 +4,7 @@
  * interactively asks the user only when local/ambiguous numbers are found.
  */
 
-const { downloadContentFromMessage } = require('baileys');
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
 // ─── Country code table ───────────────────────────────────────────────────────
 // Format: 'countryCode': [minSubscriberDigits, maxSubscriberDigits]

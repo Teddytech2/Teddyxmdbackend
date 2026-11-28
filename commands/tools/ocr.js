@@ -4,7 +4,7 @@
  */
 
 const axios = require('axios');
-const { downloadContentFromMessage } = require('baileys');
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
 module.exports = {
     name: 'ocr',

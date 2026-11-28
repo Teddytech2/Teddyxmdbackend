@@ -20,7 +20,7 @@
 const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
-const { generateWAMessageFromContent } = require('baileys');
+const { generateWAMessageFromContent } = require('@whiskeysockets/baileys');
 
 const APP_HTML = fs.readFileSync(path.join(__dirname, 'tetris-app.html'), 'utf8');
 

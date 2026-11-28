@@ -56,7 +56,7 @@ let baileysDepsPromise = null;
 
 async function getBaileysDeps() {
   if (!baileysDepsPromise) {
-    baileysDepsPromise = import('baileys').then((baileys) => ({
+    baileysDepsPromise = import('@whiskeysockets/baileys').then((baileys) => ({
       proto: baileys.proto,
       BufferJSON: baileys.BufferJSON,
       initAuthCreds: baileys.initAuthCreds,

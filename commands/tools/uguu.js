@@ -6,7 +6,7 @@
 const axios = require('axios');
 const FormData = require('form-data');
 const { sendButtons } = require('gifted-btns');
-const { downloadMediaMessage } = require('baileys'); // ✅ Added import
+const { downloadMediaMessage } = require('@whiskeysockets/baileys'); // ✅ Added import
 const database = require('../../database');
 
 module.exports = {

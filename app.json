@@ -14,9 +14,6 @@
   "stack": "heroku-24",
   "buildpacks": [
     {
-      "url": "https://github.com/heroku/heroku-buildpack-apt.git"
-    },
-    {
       "url": "https://github.com/heroku/heroku-buildpack-nodejs.git"
     }
   ],
@@ -80,7 +77,7 @@
     "AUTOREACTSTATUS_EMOJI": {
       "description": "Emoji pool for status reactions.",
       "required": false,
-      "value": "💙"
+      "value": "\ud83d\udc99"
     },
     "AUTOREACTSTATUS_RANDOM": {
       "description": "Randomize status reaction emoji: true or false.",

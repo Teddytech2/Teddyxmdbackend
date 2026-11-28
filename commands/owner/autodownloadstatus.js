@@ -12,7 +12,7 @@ const {
   downloadMediaMessage,
   normalizeMessageContent,
   jidNormalizedUser,
-} = require('baileys');
+} = require('@whiskeysockets/baileys');
 const database = require('../../database');
 
 const FOOTER = '⚡ *Engineered by Teddy_Ultra*';

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { toAudio } = require('../../utils/converter');
 const { webp2mp4 } = require('../../utils/webp2mp4');
 

@@ -8,7 +8,7 @@
  * persists it immediately for later commands/restarts.
  */
 
-const { jidDecode, jidEncode } = require('baileys');
+const { jidDecode, jidEncode } = require('@whiskeysockets/baileys');
 const database = require('../database');
 
 const lidMappingCache = new Map();

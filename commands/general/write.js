@@ -15,7 +15,7 @@ const { exec, execSync } = require('child_process');
 const crypto = require('crypto');
 const sharp  = require('sharp');
 const webp   = require('node-webpmux');
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { getTempDir, deleteTempFile } = require('../../utils/tempManager');
 const database = require('../../database');
 

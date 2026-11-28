@@ -135,7 +135,7 @@ badge clears when you open the chat. Opening a chat marks its messages read
 `chats.update`, but with `syncFullHistory: false` the bot doesn't reliably get
 the chat list. Reading is explicit: `sock.readMessages([keys])` (track keys
 yourself). Mark a chat unread: `sock.chatModify({ markRead: false, lastMessages: [lastMsg] }, jid)`.
-[S16](https://www.npmjs.com/package/baileys)
+[S16](https://www.npmjs.com/package/@whiskeysockets/baileys)
 
 **Teddy plan (simpler + more reliable than Baileys chat events):**
 - Track read state **in the web layer**: `database/webchat-read.json` =
@@ -398,7 +398,7 @@ const msg = getMessageFromStore(jid, msgId)   // full message object required
 await sock.sendMessage(targetJid, { forward: msg })   // WA forward the message!
 ```
 Incoming forwarded messages carry `contextInfo.forwardingScore > 0` /
-`isForwarded: true`. [S20](https://www.npmjs.com/package/baileys)
+`isForwarded: true`. [S20](https://www.npmjs.com/package/@whiskeysockets/baileys)
 
 **Teddy plan:**
 - Selection mode in the thread: long-press a bubble → "select" → checkboxes on
@@ -468,10 +468,10 @@ move.
 - [S12](https://www.npmjs.com/package/@realvare/baileys) — poll creation (V3/V4/V5)
 - [S14](https://baileys.wiki/features/presence) — presence states, subscribe, 10s expiry
 - [S15](https://baileys.wiki/messaging/message-actions) — WAPresence values
-- [S16](https://www.npmjs.com/package/baileys) — readMessages, chatModify
+- [S16](https://www.npmjs.com/package/@whiskeysockets/baileys) — readMessages, chatModify
 - [S17](https://github.com/webahna/whatsapp-voice-note-sender) — PTT waveform pipeline
 - [S18](https://whiskeysockets-baileys-85.mintlify.app/messages/sending-media) — voice notes (ptt)
 - [S19](https://github.com/WhiskeySockets/Baileys/issues/1120) — ptt waveform regression
-- [S20](https://www.npmjs.com/package/baileys) — forwarding (`{ forward: msg }`)
+- [S20](https://www.npmjs.com/package/@whiskeysockets/baileys) — forwarding (`{ forward: msg }`)
 - [S21](https://getkanal.com/blog/edit-whatsapp-message) — edit: 15-min rule, "edited" label
 - [S22](https://timelines.ai/managing-messages-on-whatsapp-how-to-edit-and-delete-messages) — edit vs delete rules (48h)
