@@ -1,5 +1,5 @@
 const { loadCommands } = require('../../utils/commandLoader');
-const { generateWAMessageFromContent } = require('@whiskeysockets/baileys');
+const { generateWAMessageFromContent } = require('baileys');
 const { sendButtons } = require('gifted-btns');
 const { applyFont } = require('../../utils/fontConverter');
 const fs = require('fs');

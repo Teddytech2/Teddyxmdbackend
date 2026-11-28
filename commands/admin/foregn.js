@@ -16,7 +16,7 @@
  */
 
 const path = require('path');
-const { jidDecode } = require('@whiskeysockets/baileys');
+const { jidDecode } = require('baileys');
 const database = require(require('path').join(global.__CORE__, 'database'));
 const { resolvePhone, preloadLidResolution } = require(path.join(global.__ROOT__, 'utils', 'jidHelper'));
 

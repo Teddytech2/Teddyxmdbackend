@@ -8,7 +8,7 @@
  * reply + .lid
  */
 
-const { jidDecode } = require('@whiskeysockets/baileys');
+const { jidDecode } = require('baileys');
 const {
     jidUser,
     getLidMappingValue,

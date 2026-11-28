@@ -10,7 +10,7 @@
 'use strict';
 
 const { randomUUID } = require('crypto');
-const { generateWAMessageFromContent } = require('@whiskeysockets/baileys');
+const { generateWAMessageFromContent } = require('baileys');
 
 function buildRichMessage(jid, html) {
     const data = Buffer.from(JSON.stringify({

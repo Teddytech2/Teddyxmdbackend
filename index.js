@@ -198,7 +198,7 @@ const {
     jidNormalizedUser,
     makeCacheableSignalKeyStore,
     delay
-} = require('@whiskeysockets/baileys')
+} = require('baileys')
 
 const NodeCache = require('node-cache')
 const pino = require('pino')

@@ -8,7 +8,7 @@
  * media with viewOnce disabled, matching Levanter's forwardOrBroadCast()
  * approach. No media download/temp-file round trip is required.
  */
-const { generateMessageIDV2, downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { generateMessageIDV2, downloadContentFromMessage } = require('baileys');
 
 const VIEW_ONCE_WRAPPERS = [
     'viewOnceMessageV2Extension',

@@ -4,7 +4,7 @@
  * Sticker pack name is always the sender's WhatsApp display name (pushName).
  */
 
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { downloadMediaMessage } = require('baileys');
 const webp = require('node-webpmux');
 const crypto = require('crypto');
 const fs = require('fs');

@@ -7,7 +7,7 @@
  */
 
 const database = require('../../database');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage } = require('baileys');
 
 // ── SQLite configuration ─────────────────────────────────────────────────────
 

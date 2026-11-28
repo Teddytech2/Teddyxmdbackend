@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const { Jimp } = require('jimp');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage } = require('baileys');
 const { tryFetchProfilePictureUrl, displayUserTag } = require('../../utils/jidHelper');
 
 function toJid(input) {

@@ -3,7 +3,7 @@
  */
 
 const axios = require('axios');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage } = require('baileys');
 const fs = require('fs');
 const path = require('path');
 

@@ -7,7 +7,7 @@
  * Bundled images remain application defaults and are never overwritten.
  */
 
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { downloadMediaMessage } = require('baileys');
 const https = require('https');
 const http = require('http');
 const db = require('../../database');

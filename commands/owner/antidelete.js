@@ -6,7 +6,7 @@
  */
 
 const database = require('../../database');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage } = require('baileys');
 
 const messageStore = new Map();
 const pendingPersistence = new Map();

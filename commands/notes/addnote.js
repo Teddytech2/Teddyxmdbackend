@@ -10,7 +10,7 @@
  * base64 copy in the mirrored KV store, so they survive ephemeral redeploys.
  */
 
-const { normalizeMessageContent, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { normalizeMessageContent, downloadMediaMessage } = require('baileys');
 const notes = require('../../utils/notes');
 const db = require('../../database');
 

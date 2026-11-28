@@ -1,6 +1,6 @@
 const axios = require("axios");
 const FormData = require("form-data");
-const { downloadMediaMessage } = require("@whiskeysockets/baileys");
+const { downloadMediaMessage } = require("baileys");
 const { sendButtons } = require("gifted-btns");
 const fs = require("fs");
 const path = require("path");

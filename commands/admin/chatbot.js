@@ -28,7 +28,7 @@ const { getOpenRouterApiKey } = require('../../utils/teddyDb/orap.js');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { normalizeMessageContent, jidNormalizedUser, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { normalizeMessageContent, jidNormalizedUser, downloadMediaMessage } = require('baileys');
 
 const database = require('../../database');
 const APIs = require('../../utils/api');

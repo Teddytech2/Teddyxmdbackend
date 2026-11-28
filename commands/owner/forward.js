@@ -1,4 +1,4 @@
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { downloadMediaMessage } = require('baileys');
 
 // ─── resolve quoted message ───────────────────────────────────────────────
 function resolveQuotedMsg(msg) {

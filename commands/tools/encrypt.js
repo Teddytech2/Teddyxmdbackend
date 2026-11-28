@@ -6,7 +6,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage } = require('baileys');
 // Lazy-loaded — js-confuser is ~2 MB and only needed when this command actually runs
 let JsConfuser = null;
 const getJsConfuser = () => (JsConfuser ||= require('js-confuser'));

@@ -21,7 +21,7 @@ module.exports = {
 
       await extra.reply('🎨 Enhancing your image, please wait...');
 
-      const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+      const { downloadMediaMessage } = require('baileys');
       const buffer = await downloadMediaMessage(
         {
           key: msg.message?.extendedTextMessage?.contextInfo?.stanzaId

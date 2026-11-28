@@ -8,7 +8,7 @@ const FormData = require('form-data');
 const { sendButtons } = require('gifted-btns');
 
 // Baileys helper
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { downloadMediaMessage } = require('baileys');
 const database = require('../../database');
 
 const PONE_BASE = 'https://pone.rs';

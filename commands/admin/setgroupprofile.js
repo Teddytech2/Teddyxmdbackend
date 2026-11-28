@@ -2,7 +2,7 @@
  * Set Group Profile - Update the group's profile picture
  */
 
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { downloadMediaMessage } = require('baileys');
 
 module.exports = {
     name: 'setgroupprofile',

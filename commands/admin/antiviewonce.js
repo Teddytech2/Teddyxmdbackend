@@ -9,7 +9,7 @@
  *   msg.message.<type>Message.viewOnce === true   (rare direct flag)
  */
 
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage } = require('baileys');
 const database = require(require('path').join(global.__CORE__, 'database'));
 
 // All known viewOnce wrappers, in priority order

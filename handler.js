@@ -6,7 +6,7 @@ const database = require('./database');
 const { loadCommands, watchCommands } = require('./utils/commandLoader');
 const commandToggle = require('./utils/commandToggle');
 const { addMessage, getActiveUsers, getInactiveUsers } = require('./utils/groupstats');
-const { jidDecode, jidEncode } = require('@whiskeysockets/baileys');
+const { jidDecode, jidEncode } = require('baileys');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -87,7 +87,7 @@ function cacheViewOnceMsg(msg) {
 
 /** Reveal a cached view-once message and DM the media to targetJid. */
 async function revealVoToDM(sock, originalMsg, targetJid) {
-  const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+  const { downloadContentFromMessage } = require('baileys');
   const { createTempFilePath, deleteTempFile } = require('./utils/tempManager');
 
   const VO_WRAPPERS = ['viewOnceMessageV2Extension', 'viewOnceMessageV2', 'viewOnceMessage'];
@@ -1286,7 +1286,7 @@ const handleMessage = async (sock, msg) => {
     
        let resolvedSender = sender;
     try {
-      const { jidDecode: _jidDec } = require('@whiskeysockets/baileys');
+      const { jidDecode: _jidDec } = require('baileys');
       const { getLidMappingValue } = require('./utils/jidHelper');
       const decoded = sender ? _jidDec(sender) : null;
       const server  = decoded?.server;
@@ -2297,7 +2297,7 @@ const handleAntigroupstatus = async (sock, msg, groupMetadata) => {
 const initializeAntiCall = (sock) => {
   sock.ev.on('messages.update', async (updates) => {
     try {
-      const { WAMessageStubType } = require('@whiskeysockets/baileys');
+      const { WAMessageStubType } = require('baileys');
 
       // Handle deletions
       const revokeUpdates = updates.filter(
